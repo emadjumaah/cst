@@ -282,6 +282,14 @@ for exp in EXPERIMENTS:
         all_results.append(result)
 
 
+# ── Save machine-readable results ──
+
+RESULTS_PATH = os.path.join(DATA_DIR, "results_english.json")
+with open(RESULTS_PATH, "w") as f:
+    json.dump(all_results, f, indent=2, default=float)
+print(f"\nSaved machine-readable results to {RESULTS_PATH}")
+
+
 # ── Final comparison ──
 
 print("\n" + "=" * 80)

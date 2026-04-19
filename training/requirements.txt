@@ -1,2 +1,27 @@
-torch
-transformers
+# Python dependencies for CST training and experiments.
+#
+# Pinned to the versions used in the reported experiments (Colab T4, CUDA 12.1).
+# Minor-version compatible ranges are used where upstream API is stable.
+
+# Core deep learning
+torch>=2.2,<2.7
+transformers>=4.40,<4.50
+
+# Datasets and tokenization
+datasets>=2.18,<3.0
+sentencepiece==0.2.1
+
+# Arabic morphology
+camel-tools>=1.5.5,<2.0
+
+# Numerics / utilities
+numpy>=1.26,<2.2
+tqdm>=4.66
+pandas>=2.1
+
+# Serialization of Parquet dumps (used by the data pipeline)
+pyarrow>=15.0
+
+# Optional: for local inspection / notebook reproduction
+matplotlib>=3.8
+

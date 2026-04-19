@@ -27,5 +27,8 @@ training/**/*.vocab
 # Build output
 dist/
 
+# Local planning notes
+plan/
+
 # OS
 .DS_Store

@@ -325,13 +325,55 @@ for exp in EXPERIMENTS:
         else:
             print(f"    → Tie")
 
-# ── Cross-lingual comparison (fill in English numbers from previous run) ──
+# ── Save machine-readable results ──
+
+RESULTS_PATH = os.path.join(DATA_DIR, "results_arabic.json")
+with open(RESULTS_PATH, "w") as f:
+    # history contains lists; strip torch-specific objects if any slipped in
+    serializable = []
+    for r in all_results:
+        serializable.append({k: v for k, v in r.items() if k != "history_raw"})
+    json.dump(serializable, f, indent=2, default=float)
+print(f"\nSaved machine-readable results to {RESULTS_PATH}")
+
+
+# ── Cross-lingual comparison ──
+#
+# Loads English results from results_english.json if present (produced by
+# training/colab_train_fair.py). Otherwise only prints the Arabic run.
+
 print(f"\n{'='*80}")
 print(f"  CROSS-LINGUAL: English vs Arabic")
 print(f"{'='*80}")
-print(f"  English baseline (from previous experiment):")
-print(f"    CST-8K:  BPC = 1.13    SPM-8K:  BPC = 1.75    → 35.5% reduction")
-print(f"    CST-32K: BPC = 1.23    SPM-32K: BPC = 1.65    → 25.2% reduction")
+
+english_path = os.path.join(DATA_DIR, "results_english.json")
+english_results = None
+if os.path.exists(english_path):
+    try:
+        with open(english_path) as f:
+            english_results = json.load(f)
+    except Exception as e:
+        print(f"  Warning: could not parse {english_path}: {e}")
+
+def _find(results, name):
+    for r in results:
+        if r.get("name") == name:
+            return r
+    return None
+
+if english_results:
+    print(f"\n  English (from {english_path}):")
+    for pair in [("CST-8K", "SPM-8K"), ("CST-32K", "SPM-32K")]:
+        a = _find(english_results, pair[0])
+        b = _find(english_results, pair[1])
+        if a and b:
+            diff = ((b["best_val_bpc"] - a["best_val_bpc"]) / b["best_val_bpc"]) * 100
+            print(f"    {pair[0]}: BPC = {a['best_val_bpc']:.4f}   {pair[1]}: BPC = {b['best_val_bpc']:.4f}   → {diff:.1f}% reduction")
+else:
+    print("\n  English baseline: results_english.json not found.")
+    print("  To produce it, run training/colab_train_fair.py and save its")
+    print("  all_results list to /content/results_english.json.")
+
 print(f"\n  Arabic (this run):")
 for exp in EXPERIMENTS:
     group_results = [r for r in all_results if r["group"] == exp["group"]]

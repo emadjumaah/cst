@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+title: "Contextual Semantic Tokenization (CST)"
+message: "If you use this software or the associated paper, please cite it as below."
+type: software
+authors:
+  - family-names: Jumaah
+    given-names: Emad
+    orcid: ""
+repository-code: "https://github.com/emadjumaah/cst"
+url: "https://github.com/emadjumaah/cst"
+abstract: >-
+  Contextual Semantic Tokenization (CST) is a linguistically-grounded
+  alternative to subword tokenization for language modeling. It generalizes
+  the algebraic structure of Arabic triconsonantal morphology (root x pattern
+  = concept) into a universal tokenization framework that encodes semantic
+  field and morphological role directly into every token.
+keywords:
+  - tokenization
+  - natural language processing
+  - arabic nlp
+  - morphology
+  - language modeling
+  - semantic fields
+license: Apache-2.0
+version: 0.1.0
+date-released: 2026-04-19
+preferred-citation:
+  type: article
+  title: >-
+    Contextual Semantic Tokenization: A Linguistically-Grounded Alternative
+    to Subword Segmentation for Language Modeling
+  authors:
+    - family-names: Jumaah
+      given-names: Emad
+  year: 2026
+  url: "https://github.com/emadjumaah/cst"
