@@ -7,17 +7,17 @@
  *   npx tsx scripts/generate-pdf.ts
  */
 
-import puppeteer from 'puppeteer-core';
-import { marked } from 'marked';
-import { readFileSync, writeFileSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { tmpdir } from 'os';
+import puppeteer from "puppeteer-core";
+import { marked } from "marked";
+import { readFileSync, writeFileSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+import { tmpdir } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, '..');
+const root = resolve(__dirname, "..");
 
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 // ---------------------------------------------------------------------------
 // Markdown pre-processing
@@ -27,7 +27,10 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
  * Protect LaTeX math blocks from marked's inline parser.
  * Replaces $...$ and $$...$$ with placeholders, restores after marked runs.
  */
-function protectMath(md: string): { protected: string; map: Map<string, string> } {
+function protectMath(md: string): {
+  protected: string;
+  map: Map<string, string>;
+} {
   const map = new Map<string, string>();
   let i = 0;
   const result = md
@@ -63,11 +66,11 @@ function buildHTML(markdownContent: string, rtl: boolean): string {
   const rawHTML = marked.parse(safeMd) as string;
   const bodyHTML = restoreMath(rawHTML, map);
 
-  const lang = rtl ? 'ar' : 'en';
-  const dir = rtl ? 'rtl' : 'ltr';
-  const textAlign = rtl ? 'right' : 'justify';
-  const borderSide = rtl ? 'right' : 'left';
-  const listPadding = rtl ? 'padding-right: 22pt;' : 'padding-left: 22pt;';
+  const lang = rtl ? "ar" : "en";
+  const dir = rtl ? "rtl" : "ltr";
+  const textAlign = rtl ? "right" : "justify";
+  const borderSide = rtl ? "right" : "left";
+  const listPadding = rtl ? "padding-right: 22pt;" : "padding-left: 22pt;";
 
   const fontImport = rtl
     ? `@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');`
@@ -272,45 +275,50 @@ function buildHTML(markdownContent: string, rtl: boolean): string {
 async function generatePDF(
   inputPath: string,
   outputPath: string,
-  rtl: boolean
+  rtl: boolean,
 ): Promise<void> {
   console.log(`  Reading  : ${inputPath}`);
-  const markdown = readFileSync(inputPath, 'utf-8');
+  const markdown = readFileSync(inputPath, "utf-8");
   const html = buildHTML(markdown, rtl);
 
   // Write HTML to a temp file so Chrome can load external resources
   const tmpFile = resolve(tmpdir(), `cst-paper-${Date.now()}.html`);
-  writeFileSync(tmpFile, html, 'utf-8');
+  writeFileSync(tmpFile, html, "utf-8");
 
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
   try {
     const page = await browser.newPage();
-    await page.goto(`file://${tmpFile}`, { waitUntil: 'networkidle0', timeout: 60_000 });
+    await page.goto(`file://${tmpFile}`, {
+      waitUntil: "networkidle0",
+      timeout: 60_000,
+    });
 
     // Let MathJax finish typesetting
     await page
-      .waitForFunction('window.MathJax?.startup?.promise', { timeout: 20_000 })
+      .waitForFunction("window.MathJax?.startup?.promise", { timeout: 20_000 })
       .catch(() => {});
-    await page.evaluate(async () => {
-      if ((window as any).MathJax?.startup?.promise) {
-        await (window as any).MathJax.startup.promise;
-      }
-    }).catch(() => {});
+    await page
+      .evaluate(async () => {
+        if ((window as any).MathJax?.startup?.promise) {
+          await (window as any).MathJax.startup.promise;
+        }
+      })
+      .catch(() => {});
 
     // Small settle time for fonts
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
 
     await page.pdf({
       path: outputPath,
-      format: 'A4',
+      format: "A4",
       printBackground: true,
       displayHeaderFooter: false,
-      margin: { top: '25mm', right: '25mm', bottom: '22mm', left: '25mm' }
+      margin: { top: "25mm", right: "25mm", bottom: "22mm", left: "25mm" },
     });
 
     console.log(`  ✓ Output : ${outputPath}`);
@@ -324,19 +332,24 @@ async function generatePDF(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  const papers: Array<{ input: string; output: string; rtl: boolean; label: string }> = [
+  const papers: Array<{
+    input: string;
+    output: string;
+    rtl: boolean;
+    label: string;
+  }> = [
     {
-      label: 'English',
-      input:  resolve(root, 'docs/cst-paper.md'),
-      output: resolve(root, 'docs/cst-paper.pdf'),
-      rtl: false
+      label: "English",
+      input: resolve(root, "docs/cst-paper.md"),
+      output: resolve(root, "docs/cst-paper.pdf"),
+      rtl: false,
     },
     {
-      label: 'Arabic',
-      input:  resolve(root, 'docs/cst-paper-ar.md'),
-      output: resolve(root, 'docs/cst-paper-ar.pdf'),
-      rtl: true
-    }
+      label: "Arabic",
+      input: resolve(root, "docs/cst-paper-ar.md"),
+      output: resolve(root, "docs/cst-paper-ar.pdf"),
+      rtl: true,
+    },
   ];
 
   for (const paper of papers) {
@@ -344,10 +357,10 @@ async function main() {
     await generatePDF(paper.input, paper.output, paper.rtl);
   }
 
-  console.log('\nDone. Both PDFs written to docs/');
+  console.log("\nDone. Both PDFs written to docs/");
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
