@@ -54,8 +54,8 @@ The pipeline has **7 stages**: normalize → structure detect → word split →
 
 The full study is available in this repository:
 
-- **English:** [`docs/CST_PAPER_FINAL.md`](docs/CST_PAPER_FINAL.md)
-- **Arabic:** [`docs/CST_PAPER_FINAL_AR.md`](docs/CST_PAPER_FINAL_AR.md)
+- **English:** [`docs/cst-paper.md`](docs/cst-paper.md)
+- **Arabic:** [`docs/cst-paper-ar.md`](docs/cst-paper-ar.md)
 
 **Title:** _Contextual Semantic Tokenization: A Linguistically-Grounded Alternative to Subword Segmentation for Language Modeling_
 **Author:** Emad Jumaah
