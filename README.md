@@ -28,13 +28,13 @@ CST also trains **1.56× faster** due to 30% shorter token sequences.
 
 Instead of statistical subword fragments, CST maps every word to a typed semantic token:
 
-| Type    | Format           | Example           | Meaning                                |
-| ------- | ---------------- | ----------------- | -------------------------------------- |
-| `CMP`   | `CMP:field:role` | `CMP:write:agent` | "writer" — write field, agent role     |
-| `ROOT`  | `ROOT:field`     | `ROOT:move`       | semantic field only, no derivation     |
-| `REL`   | `REL:relation`   | `REL:causes`      | grammatical or logical relation        |
-| `STR`   | `STR:marker`     | `STR:negation`    | sentence-level structural marker       |
-| `LIT`   | `LIT:surface`    | `LIT:the`         | function words, proper nouns, fallback |
+| Type   | Format           | Example           | Meaning                                |
+| ------ | ---------------- | ----------------- | -------------------------------------- |
+| `CMP`  | `CMP:field:role` | `CMP:write:agent` | "writer" — write field, agent role     |
+| `ROOT` | `ROOT:field`     | `ROOT:move`       | semantic field only, no derivation     |
+| `REL`  | `REL:relation`   | `REL:causes`      | grammatical or logical relation        |
+| `STR`  | `STR:marker`     | `STR:negation`    | sentence-level structural marker       |
+| `LIT`  | `LIT:surface`    | `LIT:the`         | function words, proper nouns, fallback |
 
 **Example:** `"The researchers discovered that rewriting the algorithm significantly improved computational efficiency."`
 
@@ -57,7 +57,7 @@ The full study is available in this repository:
 - **English:** [`docs/cst-paper.md`](docs/cst-paper.md)
 - **Arabic:** [`docs/cst-paper-ar.md`](docs/cst-paper-ar.md)
 
-**Title:** _Contextual Semantic Tokenization: A Linguistically-Grounded Alternative to Subword Segmentation for Language Modeling_  
+**Title:** _Contextual Semantic Tokenization: A Linguistically-Grounded Alternative to Subword Segmentation for Language Modeling_
 **Author:** Emad Jumaah
 
 The paper covers the conceptual origin in Arabic triconsonantal morphology, the full 7-stage tokenizer design, a controlled comparison against SentencePiece BPE at matched vocabulary sizes and parameter counts, experimental results, mechanistic analysis, cross-lingual properties, limitations, and future directions.
