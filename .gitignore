@@ -12,6 +12,10 @@ data/sentences-100.json
 # Colab upload staging directories (derived data)
 training/colab-upload/
 training/colab-upload-fair/
+training/colab-upload-ar/
+
+# Python bytecode
+__pycache__/
 
 # SentencePiece binary models (large)
 training/**/*.model
