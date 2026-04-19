@@ -98,6 +98,8 @@ The semantic fields in CST — write, know, move, create, send, think, gather �
 
 This universality is the key to CST's cross-lingual potential. When Arabic الباحث (researcher) and English "researcher" both map to `CMP:science:agent`, a model training on both languages in the same token space learns a unified representation of the concept. The LIT tokens — function words, proper nouns, unresolved surface forms — carry language-specific information. The semantic tokens carry universal information. A multilingual model built on CST shares its semantic core entirely across languages; only the LIT layer varies.
 
+We note, as an observation rather than a design claim, that this property bears a structural resemblance to what constructed universal language projects — such as Esperanto or Interlingua — attempted to achieve deliberately. The distinction is one of origin: those projects imposed a shared vocabulary through explicit design. In CST, the shared semantic layer was not an intended outcome; it arises as a consequence of grounding tokens in morphological and semantic primitives that, as linguistic typology suggests, are independently present in all human languages. Whether this emergent cross-lingual alignment translates into measurable benefits for multilingual modeling is an open empirical question that we leave to future work.
+
 ---
 
 ## 4. Method
