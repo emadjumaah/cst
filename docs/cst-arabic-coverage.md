@@ -1,422 +1,587 @@
-# CST Arabic Coverage — What Arabic Gives to CST
+# CST Arabic Coverage — How the Tokenizer Works
 
-> CST takes the algebraic structure of Arabic morphology and makes it the universal token format.
-> Arabic is not just another language in CST — **Arabic is the blueprint.**
+> CST takes the algebraic structure of Arabic morphology and makes it the
+> universal token format. Arabic is not just another language in CST —
+> **Arabic is the blueprint.**
 
-## The Core Idea
-
-Arabic morphology is built on a real algebraic system:
-
-```
-Root × Pattern = Meaning
-ك.ت.ب × فاعل = كاتب (writer)
-ك.ت.ب × مفعول = مكتوب (written)
-ك.ت.ب × مفعلة = مكتبة (library)
-```
-
-CST encodes this algebra directly:
-
-```
-Root × Pattern → CMP:field:role
-ك.ت.ب × فاعل  → CMP:write:agent
-ك.ت.ب × مفعول  → CMP:write:patient
-ك.ت.ب × مفعلة  → CMP:write:place
-```
-
-Other languages approximate the same output through their own morphology:
-
-```
-English: writer  → strip -er  → CMP:write:agent
-Spanish: escritor → strip -or → CMP:write:agent
-Arabic:  كاتب    → pattern فاعل → CMP:write:agent   (precise, algebraic)
-```
+This document specifies exactly how an Arabic sentence is turned into a
+sequence of CST tokens by [`edge/arabic_tokenizer.py`](../edge/arabic_tokenizer.py),
+what each token type means, and how the pipeline round-trips back to
+Arabic at inference time.
 
 ---
 
-## 1. الأوزان — Morphological Patterns (CMP Tokens)
+## 1. End-to-End Pipeline
 
-The heart of CST. Arabic's وزن system maps directly to CMP roles.
+```
+                 ┌────────────────────────────────────────┐
+                 │           Arabic sentence              │
+                 │     وسيكتبُ الأطفالُ رسالةً للمعلمة       │
+                 └────────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  1. Normalize (strip diacritics, kash- │
+                 │     ida; keep letters + shadda)        │
+                 └────────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  2. Sentence-level STR detection       │
+                 │     لم/لن/ليس, إذا/لو, هل, ؟, !        │
+                 └────────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  3. Word-by-word analysis              │
+                 │     CAMeL Tools → root/pattern/pos     │
+                 │                   prc0..prc3, enc0,    │
+                 │                   asp/per/gen/num      │
+                 └────────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  4. Per-word token emission            │
+                 │  [prc2 → prc1 → prc0 → prc3]           │
+                 │  core (CMP/ROOT/LIT)                   │
+                 │  [FEAT gender/num | verb asp+pgn]      │
+                 │  [FEAT:pron enc0]                      │
+                 └────────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  Integer id stream (GPT-2 causal LM)   │
+                 │  model learns next-token prediction    │
+                 └────────────────────────────────────────┘
+                                    │
+                     inference      ▼     lookup tables
+                 ┌────────────────────────────────────────┐
+                 │  5. Edge renderer                      │
+                 │     primary token → Arabic word        │
+                 │     FEAT tokens → morphological affix  │
+                 └────────────────────────────────────────┘
+                                    │
+                                    ▼
+                               Arabic text
+```
+
+Training objective is **causal LM on CST ids**: at each position the
+model predicts the next CST token given all previous ones. The model
+never sees raw text during training — it operates entirely in CST space.
+
+---
+
+## 2. Token Types
+
+CST has five token classes plus five special tokens. Every Arabic word
+decomposes into a sequence drawn from exactly these classes.
+
+| Class  | Shape                        | Role                                                     |
+| ------ | ---------------------------- | -------------------------------------------------------- |
+| `CMP`  | `CMP:<field>:<role>`         | Content word with detected pattern (agent / patient / …) |
+| `ROOT` | `ROOT:<field>`               | Content word, root matched but pattern unknown           |
+| `REL`  | `REL:<relation>`             | Grammatical relation (preposition / conjunction / …)     |
+| `STR`  | `STR:<marker>`               | Sentence-level structure (negation / condition / …)      |
+| `FEAT` | `FEAT:<attribute>[:<value>]` | Morphological feature (definiteness / gender / pronoun)  |
+| `LIT`  | `LIT:<surface>`              | Literal surface word (pronoun / aux / unknown / NER)     |
+
+Special tokens `[PAD] [UNK] [BOS] [EOS] [SEP]` occupy ids 0–4.
+
+### The Algebra
+
+```
+Root  × Pattern                = Meaning
+ك.ت.ب × فاعل                    = كاتب (writer)
+ك.ت.ب × مفعول                   = مكتوب (written)
+ك.ت.ب × مفعلة                   = مكتبة (library)
+
+Root  × Pattern                → CMP token
+ك.ت.ب × فاعل                   → CMP:write:agent
+ك.ت.ب × مفعول                  → CMP:write:patient
+ك.ت.ب × مفعلة                  → CMP:write:place
+```
+
+### Worked Example
+
+```
+Input:     وسيكتبُ الأطفالُ رسالةً للمعلمة
+Words:     وسيكتب    الأطفال    رسالة     للمعلمة
+
+Word 1: وسيكتب  (and will-he-writes)
+  prc2 = wa_conj            → REL:and
+  prc1 = sa_fut             → STR:future
+  root = ك.ت.ب              → field = write (imperfective verb,
+  pos  = verb                  no pattern match → ROOT not CMP)
+  asp  = i, per=3, gen=m, num=s
+                            → ROOT:write
+                            → FEAT:asp:i
+                            → (3ms is default pgn → skipped)
+
+Word 2: الأطفال  (the-children)
+  prc0 = Al_det             → FEAT:def
+  root = ط.ف.ل → person      → (no pattern match)
+  pos  = noun, gen=m, num=p  → ROOT:person
+                            → FEAT:p
+
+Word 3: رسالة  (letter)
+  pattern = فعالة → state    → CMP:send:state   (ر.س.ل → send)
+  gen = f, num = s           → FEAT:f
+
+Word 4: للمعلمة  (for-the-teacher-f)
+  prc1 = li_prep            → REL:for
+  prc0 = Al_det             → FEAT:def
+  pattern = مفعّلة → causer   → CMP:know:causer (ع.ل.م → know)
+  gen = f, num = s          → FEAT:f
+
+Final token stream:
+  [BOS] STR:future REL:and ROOT:write FEAT:asp:i
+        FEAT:def ROOT:person FEAT:p
+        CMP:send:state FEAT:f
+        REL:for FEAT:def CMP:know:causer FEAT:f
+  [EOS]
+```
+
+The sentence-level `STR:future` is emitted once at the head because it
+scopes the whole clause; the per-word FEAT tokens scope only the word
+they follow.
+
+---
+
+## 3. CMP Patterns — الأوزان
+
+Arabic's وزن system maps directly to CMP roles. The tokenizer matches
+the analyzer-provided `pattern` field against this table; vowel
+diacritics are stripped, shadda (ّ) is preserved.
 
 ### Noun / Participle Patterns
 
-| Pattern (وزن) | Role               | Example           | CST Token           |
-| ------------- | ------------------ | ----------------- | ------------------- |
-| فَاعِل        | agent (doer)       | كاتب (writer)     | `CMP:write:agent`   |
-| فَاعِلة       | agent (f.)         | كاتبة (writer f.) | `CMP:write:agent`   |
-| فَاعِلون      | agent (pl.)        | كاتبون (writers)  | `CMP:write:agent`   |
-| فَاعِلات      | agent (f.pl.)      | كاتبات            | `CMP:write:agent`   |
-| فَواعِل       | agent (broken pl.) | كواتب             | `CMP:write:agent`   |
-| مَفْعُول      | patient (receiver) | مكتوب (written)   | `CMP:write:patient` |
-| مَفْعُولة     | patient (f.)       | مكتوبة            | `CMP:write:patient` |
-| مَفْعَلة      | place              | مكتبة (library)   | `CMP:write:place`   |
-| مَفاعِل       | place (pl.)        | مكاتب (offices)   | `CMP:write:place`   |
-| مِفْعال       | instrument/place   | مفتاح (key)       | `CMP:open:place`    |
-| فَعِيل        | quality            | كبير (big)        | `CMP:size:quality`  |
-| فَعِيلة       | quality (f.)       | كبيرة             | `CMP:size:quality`  |
-| فَعْلان       | quality            | عطشان (thirsty)   | `CMP:food:quality`  |
-| فَعْلى        | quality (f.)       | كبرى              | `CMP:size:quality`  |
+| Pattern   | Role        | Example         | CST Token           |
+| --------- | ----------- | --------------- | ------------------- |
+| فَاعِل    | agent       | كاتب (writer)   | `CMP:write:agent`   |
+| فَاعِلة   | agent (f)   | كاتبة           | `CMP:write:agent`   |
+| فَاعِلون  | agent (pl)  | كاتبون          | `CMP:write:agent`   |
+| فَاعِلات  | agent (fpl) | كاتبات          | `CMP:write:agent`   |
+| فَواعِل   | agent (bpl) | كواتب           | `CMP:write:agent`   |
+| مَفْعُول  | patient     | مكتوب (written) | `CMP:write:patient` |
+| مَفْعُولة | patient (f) | مكتوبة          | `CMP:write:patient` |
+| مَفْعَلة  | place       | مكتبة (library) | `CMP:write:place`   |
+| مَفاعِل   | place (pl)  | مكاتب           | `CMP:write:place`   |
+| مِفْعال   | instrument  | مفتاح (key)     | `CMP:open:place`    |
+| فَعِيل    | quality     | كبير (big)      | `CMP:size:quality`  |
+| فَعْلى    | quality (f) | كبرى            | `CMP:size:quality`  |
 
-### Verbal Noun Patterns (المصادر)
+> Gender and number are recovered from CAMeL's `gen` / `num` features
+> and re-emitted as `FEAT:f`, `FEAT:p`, `FEAT:d` tokens (see §6), so
+> كاتب / كاتبة / كاتبات still decode to distinct surface forms even
+> though they share the `CMP:write:agent` core.
 
-| Pattern     | Role                 | Example            | CST Token              |
-| ----------- | -------------------- | ------------------ | ---------------------- |
-| فِعال       | instance (thing)     | كِتاب (book)       | `CMP:write:instance`   |
-| فُعول       | instance             | دُخول (entry)      | `CMP:move:instance`    |
-| فَعْل       | instance             | عِلْم (knowledge)  | `CMP:know:instance`    |
-| فِعالة      | state (act)          | كِتابة (writing)   | `CMP:write:state`      |
-| فُعولة      | state                | عُبودة (servitude) | `CMP:work:state`       |
-| تَفْعيل     | instance (Form II)   | تَعليم (teaching)  | `CMP:know:instance`    |
-| تَفْعِلة    | instance (Form II)   | تجربة (experiment) | `CMP:science:instance` |
-| اِنْفِعال   | instance (Form VII)  | انكسار (breaking)  | `CMP:destroy:instance` |
-| اِفْتِعال   | instance (Form VIII) | اجتماع (meeting)   | `CMP:gather:instance`  |
-| اِسْتِفْعال | instance (Form X)    | استخدام (usage)    | `CMP:work:instance`    |
+### Verbal Nouns (المصادر)
 
-### Derived Agent Patterns
+| Pattern     | Role                 | Example           | CST Token              |
+| ----------- | -------------------- | ----------------- | ---------------------- |
+| فِعال       | instance             | كِتاب (book)      | `CMP:write:instance`   |
+| فُعول       | instance             | دُخول (entry)     | `CMP:move:instance`    |
+| فَعْل       | instance             | عِلْم (knowledge) | `CMP:know:instance`    |
+| فِعالة      | state                | كِتابة (writing)  | `CMP:write:state`      |
+| تَفْعيل     | instance (Form II)   | تَعليم (teaching) | `CMP:know:instance`    |
+| اِنْفِعال   | instance (Form VII)  | انكسار            | `CMP:destroy:instance` |
+| اِفْتِعال   | instance (Form VIII) | اجتماع            | `CMP:gather:instance`  |
+| اِسْتِفْعال | instance (Form X)    | استخدام           | `CMP:work:instance`    |
 
-| Pattern      | Role             | Example                  | CST Token                 |
-| ------------ | ---------------- | ------------------------ | ------------------------- |
-| فَعَّال      | intensifier      | كتّاب (prolific writer)  | `CMP:write:intensifier`   |
-| فَعَّالة     | intensifier (f.) | غسّالة (washing machine) | `CMP:quality:intensifier` |
-| مُفَعِّل     | causer (Form II) | مُعلِّم (teacher)        | `CMP:know:causer`         |
-| مُفَعِّلة    | causer (f.)      | مُعلِّمة                 | `CMP:know:causer`         |
-| مُسْتَفْعِل  | seeker (Form X)  | مُستخدِم (user)          | `CMP:work:seeker`         |
-| مُسْتَفْعِلة | seeker (f.)      | مُستشفية                 | `CMP:health:seeker`       |
+### Derived Roles
 
-### Reciprocal / Process Patterns
+| Pattern     | Role          | Example           | CST Token               |
+| ----------- | ------------- | ----------------- | ----------------------- |
+| فَعَّال     | intensifier   | كتّاب             | `CMP:write:intensifier` |
+| مُفَعِّل    | causer (II)   | مُعلِّم (teacher) | `CMP:know:causer`       |
+| مُسْتَفْعِل | seeker (X)    | مُستخدِم (user)   | `CMP:work:seeker`       |
+| تَفاعُل     | mutual (VI)   | تعاوُن            | `CMP:enable:mutual`     |
+| مُفاعَلة    | process (III) | مُكاتَبة          | `CMP:write:process`     |
 
-| Pattern  | Role               | Example                   | CST Token           |
-| -------- | ------------------ | ------------------------- | ------------------- |
-| تَفاعُل  | mutual (Form VI)   | تعاوُن (cooperation)      | `CMP:enable:mutual` |
-| مُفاعَلة | process (Form III) | مُكاتَبة (correspondence) | `CMP:write:process` |
-
-### POS Fallback
-
-When pattern is not recognized but POS is adjective:
-
-| POS      | Role    | Example               | CST Token         |
-| -------- | ------- | --------------------- | ----------------- |
-| adj      | quality | جميل (beautiful)      | `CMP:art:quality` |
-| adj_comp | quality | أجمل (more beautiful) | `CMP:art:quality` |
+Words whose root matches a semantic field but whose pattern is not in
+this table fall back to `ROOT:<field>` (see §4). Conjugated verbs almost
+always land here, with their aspect / person / gender / number carried
+in companion FEAT tokens.
 
 ---
 
-## 2. الجذور — Trilateral Roots (ROOT Tokens)
+## 4. ROOT Tokens — الجذور
 
-When a root is recognized but no pattern match → `ROOT:field`.
+When a root is recognized but no pattern match → `ROOT:<field>`.
 
-58 semantic fields, each mapped from Arabic trilateral roots:
+58 semantic fields total, mapped from Arabic trilateral roots. A
+representative slice:
 
-| Field | Sample Roots        | Example                    |
-| ----- | ------------------- | -------------------------- |
-| write | ك.ت.ب، خ.ط.ط، س.ج.ل | كتب → `ROOT:write`         |
-| know  | ع.ل.م، ع.ر.ف، د.ر.س | علم → `ROOT:know`          |
-| speak | ق.و.ل، ك.ل.م، ح.د.ث | قال → `ROOT:speak`         |
-| move  | م.ش.ي، ذ.ه.ب، ر.ج.ع | ذهب → `ROOT:move`          |
-| feel  | ح.ب.ب، ش.ع.ر، ح.ز.ن | حب → `ROOT:feel`           |
-| ...   | ...                 | (500+ root mappings total) |
+| Field | Sample Roots        |
+| ----- | ------------------- |
+| write | ك.ت.ب، خ.ط.ط، س.ج.ل |
+| know  | ع.ل.م، ع.ر.ف، د.ر.س |
+| speak | ق.و.ل، ك.ل.م، ح.د.ث |
+| move  | م.ش.ي، ذ.ه.ب، ر.ج.ع |
+| feel  | ح.ب.ب، ش.ع.ر، ح.ز.ن |
 
-### Weak Root Handling
+See the `_add("<field>", …)` calls at the top of
+[`edge/arabic_tokenizer.py`](../edge/arabic_tokenizer.py) for the full 500+
+root map.
 
-Arabic weak roots (containing و/ي/ا) have variant forms. CST uses a wildcard index:
+### Weak Root Wildcards
+
+Weak roots (containing و/ي/ا) morph across conjugations. CST builds a
+wildcard index: every position occupied by a weak letter is mirrored
+with `#`.
 
 ```
-و.ج.د → exist    (standard)
-#.ج.د → exist    (wildcard: و replaced)
+و.ج.د   → exist
+#.ج.د   → exist   (و replaced by wildcard)
+#.#.د   → exist   (double-weak fallback)
 ```
 
-This catches conjugated forms where weak letters shift or disappear.
+This lets conjugated forms whose weak consonants shift or drop still
+resolve to the same field.
 
 ---
 
-## 3. حروف الجر — Prepositions (REL Tokens)
+## 5. STR Tokens — Sentence-Level Structure
 
-Every Arabic preposition maps to a specific spatial/logical relation:
+STR tokens mark whole-sentence properties. They are emitted **once** at
+the head of the sequence (right after `[BOS]`), before the first word
+token.
 
-| Arabic | Meaning            | CST Token     |
-| ------ | ------------------ | ------------- |
-| في     | in                 | `REL:in`      |
-| من     | from               | `REL:from`    |
-| إلى    | to                 | `REL:to`      |
-| على    | on                 | `REL:on`      |
-| عن     | about              | `REL:about`   |
-| مع     | with               | `REL:with`    |
-| بين    | between            | `REL:between` |
-| حول    | around             | `REL:around`  |
-| خلال   | through            | `REL:through` |
-| منذ    | since              | `REL:from`    |
-| حتى    | until              | `REL:until`   |
-| نحو    | toward             | `REL:to`      |
-| لدى    | at (possession)    | `REL:at`      |
-| عند    | at (location/time) | `REL:at`      |
-| فوق    | above              | `REL:above`   |
-| تحت    | under              | `REL:under`   |
-| أمام   | in front of        | `REL:before`  |
-| خلف    | behind             | `REL:behind`  |
-| بعد    | after              | `REL:after`   |
-| قبل    | before             | `REL:before`  |
-| دون    | without            | `REL:without` |
-| ضد     | against            | `REL:against` |
-| عبر    | across             | `REL:across`  |
-| ضمن    | within             | `REL:within`  |
-| لأجل   | for                | `REL:for`     |
+### Negation — split by grammatical scope
 
----
+Each Arabic negation particle governs a different verb mood / nominal
+case. They are **intentionally not merged** so the model can learn
+Arabic syntax and produce the correct surface form at generation time.
 
-## 4. حروف العطف — Conjunctions (REL Tokens)
+| Arabic | Governs                 | CST Token         |
+| ------ | ----------------------- | ----------------- |
+| لا     | indicative / imperative | `STR:neg:general` |
+| لم     | jussive verb            | `STR:neg:past`    |
+| لن     | subjunctive verb        | `STR:neg:future`  |
+| ليس    | accusative predicate    | `STR:neg:nominal` |
 
-| Arabic | Meaning        | CST Token      |
-| ------ | -------------- | -------------- |
-| و      | and            | `REL:and`      |
-| أو     | or             | `REL:or`       |
-| ثم     | then           | `REL:then`     |
-| لكن    | but            | `REL:but`      |
-| بل     | rather/instead | `REL:instead`  |
-| أم     | or (question)  | `REL:or`       |
-| إذ     | as/since       | `REL:as`       |
-| كي     | in order to    | `REL:for`      |
-| حيث    | where          | `REL:where`    |
-| لأن    | because        | `REL:causes`   |
-| بينما  | while          | `REL:contrast` |
-| كما    | as/like        | `REL:like`     |
-| مثل    | like           | `REL:like`     |
-| حين    | when           | `REL:when`     |
-| عندما  | when           | `REL:when`     |
-| لما    | when           | `REL:when`     |
+ما is ambiguous (negation / relative / exclamatory) and is handled
+word-locally via the CAMeL POS tag — see §9.
+
+### Conditionals — split by modality
+
+| Arabic | Modality                    | CST Token          |
+| ------ | --------------------------- | ------------------ |
+| إذا    | likely / realistic          | `STR:cond:likely`  |
+| لو     | hypothetical / unreal       | `STR:cond:hypo`    |
+| لولا   | counterfactual (if-not-for) | `STR:cond:counter` |
+
+### Other STR Markers
+
+| Trigger              | CST Token      |
+| -------------------- | -------------- |
+| هل, trailing ؟ or ?  | `STR:question` |
+| سوف                  | `STR:future`   |
+| قد + past verb       | `STR:past`     |
+| إنّ, لقد, trailing ! | `STR:emphasis` |
+
+`STR:future` can also come from a word-attached proclitic (`prc1 =
+sa_fut` / `Ha_fut`, e.g. سيكتب → `STR:future ROOT:write …`).
 
 ---
 
-## 5. إنّ وأخواتها — Sisters of إنّ (REL / STR Tokens)
+## 6. FEAT Tokens — Morphological Features
 
-| Arabic       | Meaning            | CST Token      |
-| ------------ | ------------------ | -------------- |
-| إنّ          | indeed (emphasis)  | `STR:emphasis` |
-| لكنّ         | but (contrast)     | `REL:but`      |
-| كأنّ         | as if (comparison) | `REL:like`     |
-| لعلّ         | perhaps            | `REL:maybe`    |
-| لكنه / لكنها | but + pronoun      | `REL:but`      |
-| كأنه / كأنها | as if + pronoun    | `REL:like`     |
-| لعله / لعلها | perhaps + pronoun  | `REL:maybe`    |
+FEAT tokens expose sub-word morphology that a flat BPE tokenizer
+collapses. They are emitted **immediately after** the content token
+they modify.
 
----
+| Token                | Meaning                               | Emitted when               |
+| -------------------- | ------------------------------------- | -------------------------- |
+| `FEAT:def`           | definite (ال)                         | `prc0 = Al_det`            |
+| `FEAT:f`             | feminine noun / adj                   | `gen = f` and pos ≠ verb   |
+| `FEAT:p`             | plural noun / adj                     | `num = p` and pos ≠ verb   |
+| `FEAT:d`             | dual noun / adj                       | `num = d` and pos ≠ verb   |
+| `FEAT:asp:p`         | perfective verb                       | pos = verb, `asp = p`      |
+| `FEAT:asp:i`         | imperfective verb                     | pos = verb, `asp = i`      |
+| `FEAT:asp:c`         | imperative verb                       | pos = verb, `asp = c`      |
+| `FEAT:1s`…`FEAT:3fp` | verb subject person-gender-number     | verbs; default 3ms omitted |
+| `FEAT:pron:3ms`…     | pronominal enclitic (ه / ها / هم / …) | `enc0 ≠ 0`                 |
 
-## 6. أدوات النفي — Negation (STR Tokens)
+The pgn / pron tags use a compact code: first char is person (1/2/3),
+middle char is gender (m/f — omitted for 1st person and non-gendered
+duals/plurals), last char is number (s/p/d). Examples:
 
-| Arabic | Context                       | CST Token      |
-| ------ | ----------------------------- | -------------- |
-| لا     | general negation              | `STR:negation` |
-| لم     | past negation (jussive)       | `STR:negation` |
-| لن     | future negation (subjunctive) | `STR:negation` |
-| ليس    | nominal negation              | `STR:negation` |
-
-> Note: ما is **not** mapped as negation because it is ambiguous (ما النافية، ما الموصولة، ما التعجبية). It maps to `REL:what`. The model learns the distinction from context.
-
----
-
-## 7. أدوات التوكيد — Emphasis (STR Tokens)
-
-| Arabic | Context           | CST Token      |
-| ------ | ----------------- | -------------- |
-| إنّ    | emphasis particle | `STR:emphasis` |
-| لقد    | past emphasis     | `STR:emphasis` |
-| !      | exclamation mark  | `STR:emphasis` |
+| Code  | Meaning               |
+| ----- | --------------------- |
+| `1s`  | I                     |
+| `1p`  | we                    |
+| `2ms` | you (m.sg)            |
+| `3fs` | she / her / it (f.sg) |
+| `3mp` | they / them (m.pl)    |
+| `3fp` | they / them (f.pl)    |
+| `3d`  | they / them (dual)    |
 
 ---
 
-## 8. أدوات الشرط — Conditional (STR Tokens)
+## 7. REL Tokens — حروف الجر، العطف، والاستفهام
 
-| Arabic | Meaning           | CST Token       |
-| ------ | ----------------- | --------------- |
-| إذا    | if (likely)       | `STR:condition` |
-| لو     | if (hypothetical) | `STR:condition` |
-| لولا   | if not for        | `STR:condition` |
+Every Arabic function word that expresses a grammatical relationship
+between content words maps to a REL token. Function words that appear
+as fused clitics (بـ، لـ، كـ، و، ف) also produce REL tokens through the
+clitic decomposition in §8.
 
----
+### Prepositions
 
-## 9. أدوات الاستفهام — Question (STR Tokens)
+| Arabic | CST Token     | Arabic | CST Token     |
+| ------ | ------------- | ------ | ------------- |
+| في     | `REL:in`      | فوق    | `REL:above`   |
+| من     | `REL:from`    | تحت    | `REL:under`   |
+| إلى    | `REL:to`      | أمام   | `REL:infront` |
+| على    | `REL:on`      | خلف    | `REL:behind`  |
+| عن     | `REL:about`   | بعد    | `REL:after`   |
+| مع     | `REL:with`    | قبل    | `REL:before`  |
+| بين    | `REL:between` | دون    | `REL:without` |
+| حول    | `REL:around`  | ضد     | `REL:against` |
+| خلال   | `REL:through` | عبر    | `REL:across`  |
+| منذ    | `REL:since`   | ضمن    | `REL:within`  |
+| حتى    | `REL:until`   | لأجل   | `REL:for`     |
+| نحو    | `REL:to`      | لدى    | `REL:at`      |
+| عند    | `REL:at`      |        |               |
 
-| Arabic | Context               | CST Token      |
-| ------ | --------------------- | -------------- |
-| هل     | yes/no question       | `STR:question` |
-| ؟      | question mark         | `STR:question` |
-| ?      | question mark (Latin) | `STR:question` |
+> **Splits worth remembering.** منذ is kept distinct from من (temporal
+> vs. generic source) and أمام is kept distinct from قبل (spatial vs.
+> temporal). Collapsing them erases meaning the model can never recover
+> at generation time.
 
----
+### Conjunctions
 
-## 10. أدوات الاستقبال — Future (STR Tokens)
+| Arabic             | CST Token      |
+| ------------------ | -------------- |
+| و                  | `REL:and`      |
+| أو, أم             | `REL:or`       |
+| ثم                 | `REL:then`     |
+| لكن, لكنّ          | `REL:but`      |
+| بل                 | `REL:instead`  |
+| إذ                 | `REL:as`       |
+| كي                 | `REL:for`      |
+| حيث                | `REL:where`    |
+| لأن                | `REL:causes`   |
+| بينما              | `REL:contrast` |
+| كما, مثل, كأنّ     | `REL:like`     |
+| حين, عندما, لما    | `REL:when`     |
+| لعلّ               | `REL:maybe`    |
+| إلا, سوى, عدا, خلا | `REL:except`   |
+| إنما, فقط          | `REL:only`     |
 
-| Arabic            | Context         | CST Token    |
-| ----------------- | --------------- | ------------ |
-| سوف               | will (explicit) | `STR:future` |
-| سـ + imperfective | will (prefix)   | `STR:future` |
+### Demonstratives & Relatives
 
-Detection: سـ prefix is detected when the word starts with س followed by an imperfective verb prefix (ي/ت/ن/أ), e.g. سيذهب → `STR:future`.
+| Arabic                | CST Token   |
+| --------------------- | ----------- |
+| هذا, هذه              | `REL:this`  |
+| ذلك, تلك              | `REL:those` |
+| هؤلاء                 | `REL:these` |
+| الذي, التي            | `REL:which` |
+| الذين, اللذين, اللاتي | `REL:who`   |
 
----
+### Quantifiers
 
-## 11. الماضي — Past (STR Tokens)
+| Arabic         | CST Token     |
+| -------------- | ------------- |
+| كل, جميع, سائر | `REL:all`     |
+| بعض, أحد       | `REL:some`    |
+| أي             | `REL:any`     |
+| كلا            | `REL:both`    |
+| معظم, أغلب     | `REL:most`    |
+| عدة            | `REL:several` |
+| كثير           | `REL:many`    |
+| قليل           | `REL:few`     |
+| أكثر           | `REL:more`    |
+| أقل            | `REL:less`    |
+| غير            | `REL:unlike`  |
 
-| Arabic         | Context          | CST Token  |
-| -------------- | ---------------- | ---------- |
-| قد + past verb | completed action | `STR:past` |
+### Adverbs
 
----
-
-## 12. أدوات الاستثناء — Exception (REL Tokens)
-
-| Arabic | Meaning    | CST Token    |
-| ------ | ---------- | ------------ |
-| إلا    | except     | `REL:except` |
-| سوى    | other than | `REL:except` |
-| عدا    | apart from | `REL:except` |
-| خلا    | except for | `REL:except` |
-
----
-
-## 13. أدوات التقييد — Restriction (REL Tokens)
-
-| Arabic | Meaning   | CST Token  |
-| ------ | --------- | ---------- |
-| إنما   | only/just | `REL:only` |
-| فقط    | only      | `REL:only` |
-
----
-
-## 14. أسماء الإشارة والموصول — Demonstratives & Relatives (REL Tokens)
-
-| Arabic         | Meaning     | CST Token   |
-| -------------- | ----------- | ----------- |
-| هذا / هذه      | this        | `REL:this`  |
-| ذلك / تلك      | that        | `REL:those` |
-| هؤلاء          | these       | `REL:these` |
-| الذي / التي    | which       | `REL:which` |
-| الذين / اللذين | who (pl.)   | `REL:who`   |
-| اللاتي         | who (f.pl.) | `REL:who`   |
-| ما             | what        | `REL:what`  |
-
----
-
-## 15. المحددات والكمّيات — Quantifiers (REL Tokens)
-
-| Arabic           | Meaning      | CST Token     |
-| ---------------- | ------------ | ------------- |
-| كل / جميع / سائر | all          | `REL:all`     |
-| بعض / أحد        | some         | `REL:some`    |
-| أي               | any          | `REL:any`     |
-| كلا              | both         | `REL:both`    |
-| معظم / أغلب      | most         | `REL:most`    |
-| عدة              | several      | `REL:several` |
-| كثير             | many         | `REL:many`    |
-| قليل             | few          | `REL:few`     |
-| أكثر             | more         | `REL:more`    |
-| أقل              | less         | `REL:less`    |
-| غير              | unlike/other | `REL:unlike`  |
+| Arabic | CST Token      |
+| ------ | -------------- |
+| أيضا   | `REL:also`     |
+| جدا    | `REL:emphasis` |
+| تقريبا | `REL:almost`   |
+| حاليا  | `REL:now`      |
 
 ---
 
-## 16. الضمائر — Pronouns (LIT Tokens)
+## 8. Clitic Decomposition
 
-| Arabic                | CST Token                  |
-| --------------------- | -------------------------- |
-| أنا، نحن              | `LIT:أنا`, `LIT:نحن`       |
-| أنت، أنتِ، أنتم، أنتن | `LIT:أنت`, `LIT:أنتِ`, ... |
-| هو، هي، هم، هن، هما   | `LIT:هو`, `LIT:هي`, ...    |
+Arabic orthography fuses particles onto content words. The sequence
+`وسبللمعلمين` ("and by / for / for the teachers") is one graphical
+word but four morphemes. CAMeL Tools exposes them as features; CST
+emits each as its own token so the model sees the real grammatical
+structure.
 
-Pronouns are `LIT` because they are referential — they point to entities, they don't carry semantic field content.
+| Feature | What it carries              | Example values                                                             |
+| ------- | ---------------------------- | -------------------------------------------------------------------------- |
+| `prc2`  | conjunction proclitic        | `wa_conj`, `fa_conj`, `wa_sub`                                             |
+| `prc1`  | preposition / future / emph. | `bi_prep`, `li_prep`, `ka_prep`, `sa_fut`, `Ha_fut`, `la_emph`, `min_prep` |
+| `prc0`  | article / attached negation  | `Al_det`, `mA_neg`, `lA_neg`                                               |
+| `prc3`  | question particle            | `>a_ques`                                                                  |
+| `enc0`  | pronominal enclitic          | `3ms_poss`, `1s_dobj`, `3fp_pron`                                          |
 
----
+Emission order is outer → inner: **prc2 → prc1 → prc0 → prc3**. Full
+mapping tables live in [`edge/arabic_tokenizer.py`](../edge/arabic_tokenizer.py)
+(`PRC0_TOKENS`, `PRC1_TOKENS`, `PRC2_TOKENS`, `PRC3_TOKENS`, `enc0_feat`).
 
-## 17. كان وأخواتها — Auxiliary Verbs (LIT Tokens)
+### Worked example: `وبالكتابه`
 
-| Arabic     | Meaning         | CST Token              |
-| ---------- | --------------- | ---------------------- |
-| كان / يكون | was/is          | `LIT:كان` / `LIT:يكون` |
-| أصبح       | became          | `LIT:أصبح`             |
-| ظل         | remained        | `LIT:ظل`               |
-| بات        | spent the night | `LIT:بات`              |
-| صار        | became          | `LIT:صار`              |
+> و + ب + ال + كتاب + ه = "and with his book"
 
----
-
-## 18. الأعداد — Numerals (ROOT Tokens)
-
-| Arabic                      | CST Token   |
-| --------------------------- | ----------- |
-| واحد، اثنان، ثلاثة ... تسعة | `ROOT:size` |
-| عشر، عشرة، مئة، مائة        | `ROOT:size` |
-| ألف، مليون                  | `ROOT:size` |
-
----
-
-## 19. أسماء العلم — Named Entities (LIT Tokens)
-
-Detected via camel-tools `pos=noun_prop`:
+| Feature | Value                    | Emits                |
+| ------- | ------------------------ | -------------------- |
+| `prc2`  | `wa_conj`                | `REL:and`            |
+| `prc1`  | `bi_prep`                | `REL:with`           |
+| `prc0`  | `Al_det`                 | `FEAT:def`           |
+| core    | root ك.ت.ب, pattern فعال | `CMP:write:instance` |
+| `enc0`  | `3ms_poss`               | `FEAT:pron:3ms`      |
 
 ```
-محمد → LIT:محمد     (proper noun, not analyzed for root)
-القاهرة → LIT:القاهرة  (city name, preserved as surface)
+وبالكتابه → REL:and REL:with FEAT:def CMP:write:instance FEAT:pron:3ms
 ```
 
-Named entities are emitted as `LIT` by design — their identity matters more than their etymology.
+Five tokens for one orthographic word — but every piece of meaning is
+preserved and the model sees each morpheme as a first-class unit.
 
 ---
 
-## 20. Proclitic Handling
+## 9. Fast-Path Words
 
-Arabic attaches prepositions and conjunctions as prefixes. The tokenizer strips common proclitics before morphological analysis:
+A small set of words bypass morphological analysis because their
+semantics are fixed:
 
-| Proclitic | Components | Example                |
-| --------- | ---------- | ---------------------- |
-| وال       | و + ال     | والكتاب → و + الكتاب   |
-| بال       | ب + ال     | بالمدرسة → ب + المدرسة |
-| لل        | ل + ال     | للعلم → ل + العلم      |
-| فال       | ف + ال     | فالعمل → ف + العمل     |
-| ال        | the        | الكاتب → كاتب          |
+- **STR triggers** (`ARABIC_STR_TRIGGERS` in `edge/arabic_tokenizer.py`) — emitted
+  once at sentence level (see §5), consumed at the word position.
+- **REL fixed map** (`ARABIC_REL_MAP`) — prepositions, conjunctions,
+  quantifiers listed in §7 emit their REL directly. These are
+  standalone-word forms; their clitic-fused variants (بـ، لـ، …) flow
+  through the prc1/prc2 pipeline instead.
+- **LIT particles** (`ARABIC_LIT_WORDS`) — personal pronouns,
+  auxiliaries, subordinators, vocative يا.
+- **Numerals** (`ARABIC_NUMERALS`) — all emit `ROOT:size`.
 
-After stripping, the stem is re-analyzed for root and pattern extraction.
+### Disambiguating ما
 
----
+ما is ambiguous (negation / interrogative / relative). The tokenizer
+uses the CAMeL POS to choose:
 
-## What Arabic Provides That Other Languages Approximate
+| POS                             | Emits             |
+| ------------------------------- | ----------------- |
+| `part_neg`                      | `STR:neg:general` |
+| `pron_interrog`, `adv_interrog` | `REL:what`        |
+| `pron_rel`, `adv_rel`           | `REL:which`       |
+| anything else                   | `REL:what`        |
 
-| Feature           | Arabic (precise)                        | English (approximate)                        |
-| ----------------- | --------------------------------------- | -------------------------------------------- |
-| Root extraction   | Trilateral root system (ك.ت.ب)          | Lemmatization (writer → write)               |
-| Role from pattern | وزن system (فاعل → agent) ~95% accurate | Suffix stripping (-er → agent) ~60% accurate |
-| CMP emission      | Pattern-based, systematic               | Affix-based, irregular                       |
-| Negation          | Dedicated particles (لا/لم/لن/ليس)      | Word detection (not/never/can't)             |
-| Future            | Dedicated prefix سـ + particle سوف      | Modal detection (will/shall)                 |
-| Question          | Dedicated particle هل                   | Punctuation only (?)                         |
-
----
-
-## What We Intentionally Exclude
-
-| Feature                 | Reason                                                        |
-| ----------------------- | ------------------------------------------------------------- |
-| إعراب (case endings)    | Dropped in modern Arabic, unreliable in unvoweled text        |
-| Broken plurals          | Complex mapping, marginal gain for model training             |
-| Dual number (المثنى)    | Rare in modern text                                           |
-| ما as negation          | Ambiguous — same form for negation, relative, and exclamatory |
-| همزة الاستفهام (أ)      | Rare, hard to distinguish from regular أ prefix               |
-| Full dependency parsing | Beyond tokenizer scope — the model learns syntax from context |
+Note: ما is also listed in `ARABIC_REL_MAP` as a safety fallback when no
+analysis is available, which lands on `REL:what`.
 
 ---
 
-## Token Distribution (Expected)
+## 10. Fallback Hierarchy
 
-Based on Arabic Wikipedia text:
+For each content word the tokenizer walks this priority ladder:
 
-| Token Type       | Expected % | Meaning                                                |
-| ---------------- | ---------- | ------------------------------------------------------ |
-| `CMP:field:role` | ~30-40%    | Content words with detected pattern → **new with وزن** |
-| `ROOT:field`     | ~15-25%    | Content words, no pattern match (fallback)             |
-| `REL:relation`   | ~20-25%    | Prepositions, conjunctions, quantifiers                |
-| `STR:marker`     | ~3-5%      | Sentence-level markers (negation, question, etc.)      |
-| `LIT:surface`    | ~15-25%    | Pronouns, auxiliaries, unknown words, named entities   |
+| Step | Condition                                     | Token emitted            |
+| ---- | --------------------------------------------- | ------------------------ |
+| 1    | Word is a fast-path STR / REL / LIT / numeral | `STR:` / `REL:` / `LIT:` |
+| 2    | CAMeL gives no usable analysis                | `LIT:<surface>`          |
+| 3    | `pos = noun_prop` (named entity)              | `LIT:<surface>`          |
+| 4    | Root known + pattern matches table            | `CMP:<field>:<role>`     |
+| 5    | Root known + pos matches `POS_TO_ROLE`        | `CMP:<field>:<role>`     |
+| 6    | Root known, no role                           | `ROOT:<field>`           |
+| 7    | Root unknown                                  | `LIT:<surface>`          |
+
+FEAT tokens are attached only after steps 4–6 succeed (content words
+with recovered morphology).
 
 ---
 
-## The Algebra in One Sentence
+## 11. How Decoding Works (Edge Inference)
 
-> Arabic gives CST its algebraic foundation: **root × pattern = meaning**.
-> Every other language is translated into this algebra. The model sees one universal structure, regardless of source language.
+Training runs entirely in CST-id space (GPT-2 causal LM over
+`train-100000.jsonl`). At inference the model emits a stream of CST
+ids which must be rendered back to Arabic by the edge demo.
+
+The lookup tables are produced by
+[`edge/build_lookups.py`](../edge/build_lookups.py):
+
+- **`word2tok.json`** — Arabic surface word → most-common CST token
+  _sequence_ (full sequence, including FEAT tokens).
+- **`tok2word.json`** — primary CST token → most-common Arabic surface
+  word. FEAT tokens are skipped on this side because they are affixes,
+  not standalone words.
+
+The edge renderer reads the generated token stream and:
+
+1. Emits the surface word for each primary token via `tok2word`.
+2. Treats FEAT tokens as modifiers: `FEAT:def` prepends ال, `FEAT:pron:3ms`
+   appends ه, etc. (v1 renderer is intentionally simple; v2 can use a
+   proper morphological generator.)
+
+This means the tokenizer is **not byte-reversible** — CST is lossy by
+design, like BPE is lossy about casing. The goal is faithful _semantic_
+round-trip, not exact orthographic round-trip. The model's job at
+inference is to pick the CST tokens whose composition produces natural
+Arabic, not to regenerate the literal input.
+
+---
+
+## 12. Expected Token Distribution
+
+Over 100k Arabic Wikipedia sentences, typical distribution:
+
+| Class    | Share     | Notes                                    |
+| -------- | --------- | ---------------------------------------- |
+| `CMP:*`  | 25 – 35 % | Content words where pattern matched      |
+| `ROOT:*` | 15 – 20 % | Conjugated verbs / un-patterned forms    |
+| `REL:*`  | 15 – 20 % | Function words + decomposed prepositions |
+| `FEAT:*` | 15 – 25 % | New — morphological richness             |
+| `STR:*`  | 3 – 6 %   | Sentence-level markers                   |
+| `LIT:*`  | 10 – 15 % | Pronouns / auxiliaries / NER / unknowns  |
+
+FEAT's large share reflects the new clitic and feature decomposition;
+it replaces the long `LIT:<fused-word>` tail that older versions
+produced.
+
+---
+
+## 13. What We Intentionally Exclude
+
+| Feature                 | Reason                                                       |
+| ----------------------- | ------------------------------------------------------------ |
+| إعراب (case endings)    | Dropped in modern Arabic, unreliable in unvoweled text       |
+| Broken plural surface   | Collapsed into `CMP + FEAT:p`; surface form comes via lookup |
+| Full dependency parsing | Beyond tokenizer scope — model learns syntax from context    |
+
+---
+
+## 14. File Map
+
+| File                                              | Role                                                      |
+| ------------------------------------------------- | --------------------------------------------------------- |
+| `edge/arabic_tokenizer.py`                        | **Canonical Arabic CST tokenizer library** (data + class) |
+| `edge/training/tokenize_1m.py`                    | Experiment CLI: tokenize 1M Wikipedia sentences           |
+| `edge/training/tests/test_tokenizer.py`           | Unit tests (mocked analyzer, no DB needed)                |
+| `edge/build_lookups.py`                           | word ↔ token-sequence lookup tables                       |
+| `src/tokenizer/cst-spec.ts`                       | TypeScript spec: token classes, categories                |
+| `data/tokenized/cst-ar/train-*.jsonl`             | Produced training data                                    |
+| `edge/demo/public/model/{word2tok,tok2word}.json` | Lookup tables shipped to the browser demo                 |
+
+Legacy scripts under `training/arabic_experiment*.py` use the older
+`FUNC:PREP` / `FUNC:CONJ` labeling scheme and are **not** aligned with
+the current spec. Use `edge/arabic_tokenizer.py` as the source of
+truth; `edge/training/tokenize_1m.py` is only a driver for the 1M
+Wikipedia experiment — write new experiment scripts as thin wrappers
+that import from `edge/arabic_tokenizer.py`, do not copy its contents.
+
+---
+
+## 15. One-Sentence Summary
+
+> Every Arabic surface word decomposes into a **prefix stack of
+> clitics** (REL / STR / FEAT:def) plus a **core content token** (CMP /
+> ROOT / LIT) plus an **inflection tail** (FEAT gender / number /
+> aspect / person / pronominal enclitic). The model never sees opaque
+> fused words — it sees the algebra.

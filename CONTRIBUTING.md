@@ -29,7 +29,7 @@ See the "Repository Structure" section in `README.md`.
 
 Source of truth for tokenizer behavior: `src/tokenizer/`. Behavior must be backed by a test in `src/tests/`.
 
-Source of truth for Arabic tokenizer behavior: `training/arabic_experiment_v2.py` (`ArabicCSTTokenizer` class).
+Source of truth for Arabic tokenizer behavior: `edge/arabic_tokenizer.py` (`ArabicCSTTokenizer` class). Unit tests live in `edge/training/tests/test_tokenizer.py`. Experiment scripts (e.g. `edge/training/tokenize_1m.py`) must import from the library — never duplicate tokenizer logic.
 
 ## Before submitting a PR
 

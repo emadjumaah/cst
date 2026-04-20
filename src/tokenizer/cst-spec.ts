@@ -218,6 +218,7 @@ export const RELATION_CATEGORIES = {
   beside: "spatial",
   behind: "spatial",
   beyond: "spatial",
+  infront: "spatial", // AR: أمام (in front of, spatial) — distinct from before (temporal)
   against: "spatial",
   into: "spatial",
   onto: "spatial",
@@ -234,6 +235,7 @@ export const RELATION_CATEGORIES = {
   still: "temporal",
   yet: "temporal",
   once: "temporal",
+  since: "temporal", // AR: منذ (temporal source) — distinct from from (spatial source)
 
   // ── Logical ──
   causes: "logical",
@@ -362,8 +364,29 @@ export const RELATION_CATEGORIES = {
  */
 export const STRUCTURE_MARKERS = [
   "question", // EN: trailing ?, AR: trailing ؟ or هل/ما/أ prefix
-  "negation", // EN: not/never/can't, AR: لا/لم/لن/ليس/ما
-  "condition", // EN: if/unless/when, AR: إذا/لو/إن/لولا
+
+  // Negation — split in Arabic so the model can learn verb mood / case.
+  // English: not/never/can't all → STR:negation.
+  // Arabic:  لا → STR:neg:general (indicative/imperative scope)
+  //          لم → STR:neg:past    (governs jussive)
+  //          لن → STR:neg:future  (governs subjunctive)
+  //          ليس → STR:neg:nominal (governs accusative predicate)
+  "negation",
+  "neg:general",
+  "neg:past",
+  "neg:future",
+  "neg:nominal",
+
+  // Conditional — split in Arabic so the model learns mood / likelihood.
+  // English: if/unless/when all → STR:condition.
+  // Arabic:  إذا  → STR:cond:likely  (realistic condition)
+  //          لو   → STR:cond:hypo    (hypothetical / unreal)
+  //          لولا → STR:cond:counter (counterfactual, if-not-for)
+  "condition",
+  "cond:likely",
+  "cond:hypo",
+  "cond:counter",
+
   "future", // EN: will/shall/going to, AR: سوف/سـ
   "past", // EN: was/were/had/did, AR: كان/قد + past verb
   "emphasis", // EN: trailing !, AR: trailing ! or إنّ/لقد
