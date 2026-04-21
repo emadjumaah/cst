@@ -7,18 +7,29 @@ tokens + top-N most frequent LIT tokens, maps the rest to UNK.
 Usage:
   python3 training/cap_cst_vocab.py 8000
   python3 training/cap_cst_vocab.py 32000
+  python3 training/cap_cst_vocab.py 8000 --src data/tokenized/cst-py/train-99963.jsonl --out-dir data/tokenized/cst-py-8k
 """
 
+import argparse
 import json
-import sys
 from collections import Counter
 from pathlib import Path
 
-SRC = Path("data/tokenized/cst/train-100000.jsonl")
+DEFAULT_SRC = Path("data/tokenized/cst/train-100000.jsonl")
 
 def main():
-    cap = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    print(f"Capping CST vocab to {cap}")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cap", type=int, nargs="?", default=8000,
+                    help="Target vocab size (default: 8000)")
+    ap.add_argument("--src", type=Path, default=DEFAULT_SRC,
+                    help=f"Source jsonl with tokens field (default: {DEFAULT_SRC})")
+    ap.add_argument("--out-dir", type=Path, default=None,
+                    help="Output dir (default: data/tokenized/cst-{cap//1000}k)")
+    args = ap.parse_args()
+
+    cap = args.cap
+    SRC = args.src
+    print(f"Capping CST vocab to {cap}  (src={SRC})")
 
     # Pass 1: count token frequencies
     freq = Counter()
@@ -83,7 +94,7 @@ def main():
     unk_id = tok2id[UNK]
 
     # Pass 2: remap IDs
-    out_dir = Path(f"data/tokenized/cst-{cap//1000}k")
+    out_dir = args.out_dir if args.out_dir is not None else Path(f"data/tokenized/cst-{cap//1000}k")
     out_dir.mkdir(parents=True, exist_ok=True)
     out_jsonl = out_dir / f"train-{len(rows)}.jsonl"
     out_vocab = out_dir / f"train-{len(rows)}-vocab.json"

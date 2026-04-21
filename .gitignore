@@ -13,6 +13,8 @@ data/sentences-100.json
 training/colab-upload/
 training/colab-upload-fair/
 training/colab-upload-ar/
+training/colab-upload-en/
+training/colab-upload-en.tar.gz
 
 # Python bytecode
 __pycache__/
