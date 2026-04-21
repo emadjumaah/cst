@@ -585,3 +585,43 @@ that import from `edge/arabic_tokenizer.py`, do not copy its contents.
 > ROOT / LIT) plus an **inflection tail** (FEAT gender / number /
 > aspect / person / pronominal enclitic). The model never sees opaque
 > fused words — it sees the algebra.
+
+---
+
+## 16. Companion Tool: `arabic-algebra-engine`
+
+The sister project [`arabic-algebra-engine`](../../arabic-algebra/arabic-algebra-engine/)
+is a zero-parameter, deterministic **symbolic encoder** that maps short
+Arabic (or English) intent phrases into the same root × pattern algebra
+described above. It is **not a competitor to the CST tokenizer** — it is
+a producer of CST-compatible token sequences for cases where the input
+is a short command/intent rather than free-running prose.
+
+Relevance for CST:
+
+| What the engine provides                              | How CST consumes it                                             |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| 820 hand-curated triconsonantal roots × 29 domains    | Expanded candidate set for the CST semantic-field map           |
+| Root → resource/domain labels                         | Supervised labels for field-level token classification          |
+| `toCST(token)` bridge returning `[BOS] … [EOS]` seqs  | Direct training data for the reasoning-level tokenizer `T_R^ar` |
+| Deterministic encoder (no CAMeL dependency)           | Lightweight fallback when CAMeL analysis is unavailable         |
+| 74 action rules + agent/decomposer + domain packs     | Ground-truth CoT traces for the reasoning-model training set    |
+
+The bridge lives at
+[`src/engine/core/cst_bridge.ts`](../../arabic-algebra/arabic-algebra-engine/src/engine/core/cst_bridge.ts)
+and is exported as `toCST` from the package root:
+
+```ts
+import { encodeLocal, toCST } from "arabic-algebra-engine";
+
+const token = encodeLocal("أرسل التقرير إلى المدير غدًا");
+const cst   = toCST(token);
+// cst.tokens → ["[BOS]", "CMP:message:patient", "LIT:time:tomorrow", …, "[EOS]"]
+```
+
+The output shape matches this document's reasoning-level contract
+exactly: `ROOT:<field>` / `CMP:<field>:<role>` / `REL:<type>` /
+`STR:<marker>` / `LIT:<value>`. That means the engine's emissions can
+be concatenated directly with the tokenizer's output for joint training
+without any further re-mapping.
+
