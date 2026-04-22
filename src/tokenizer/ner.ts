@@ -4,7 +4,7 @@
  * Named entities emit LIT: tokens directly.
  */
 
-// @ts-expect-error compromise has no typed exports for this pattern
+// @ts-ignore compromise has no typed exports for this pattern
 import nlp from 'compromise'
 
 export interface EntityMap {

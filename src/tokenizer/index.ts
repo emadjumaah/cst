@@ -6,7 +6,7 @@ import { decompose } from "./morphology.ts";
 import { emitToken } from "./emitter.ts";
 import { Vocabulary } from "./vocabulary.ts";
 
-// @ts-expect-error compromise has no typed exports for this pattern
+// @ts-ignore compromise has no typed exports for this pattern
 import nlp from "compromise";
 
 export type {

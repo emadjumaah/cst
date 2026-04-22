@@ -340,14 +340,14 @@ async function main() {
   }> = [
     {
       label: "English",
-      input: resolve(root, "docs/cst-paper.md"),
-      output: resolve(root, "docs/cst-paper.pdf"),
+      input: resolve(root, "docs/paper/cst-paper.md"),
+      output: resolve(root, "docs/paper/cst-paper.pdf"),
       rtl: false,
     },
     {
       label: "Arabic",
-      input: resolve(root, "docs/cst-paper-ar.md"),
-      output: resolve(root, "docs/cst-paper-ar.pdf"),
+      input: resolve(root, "docs/paper/cst-paper-ar.md"),
+      output: resolve(root, "docs/paper/cst-paper-ar.pdf"),
       rtl: true,
     },
   ];
@@ -357,7 +357,7 @@ async function main() {
     await generatePDF(paper.input, paper.output, paper.rtl);
   }
 
-  console.log("\nDone. Both PDFs written to docs/");
+  console.log("\nDone. Both PDFs written to docs/paper/");
 }
 
 main().catch((err) => {

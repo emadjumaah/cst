@@ -82,8 +82,8 @@ The tokenizer runs in **7 stages**: normalize → detect structure → split wor
 
 The full study is available in this repository:
 
-- **English:** [`docs/cst-paper.md`](docs/cst-paper.md)
-- **Arabic:** [`docs/cst-paper-ar.md`](docs/cst-paper-ar.md) — published simultaneously in Arabic; to our knowledge the first NLP systems paper to do so.
+- **English:** [`docs/paper/cst-paper.md`](docs/paper/cst-paper.md)
+- **Arabic:** [`docs/paper/cst-paper-ar.md`](docs/paper/cst-paper-ar.md) — published simultaneously in Arabic; to our knowledge the first NLP systems paper to do so.
 
 **Title:** _Contextual Semantic Tokenization: A Linguistically-Grounded Alternative to Subword Segmentation for Language Modeling_
 **Author:** Emad Jumaah
@@ -107,36 +107,32 @@ npx tsx src/demo.ts     # tokenize example sentences
 ## Repository Structure
 
 ```
-src/
-  tokenizer/
-    index.ts              ← CSTTokenizer (7-stage processing)
-    types.ts              ← token types and interfaces
-    normalizer.ts         ← stage 1: text normalization
-    structureDetector.ts  ← stage 2: sentence-level STR detection
-    ner.ts                ← stage 4: named entity recognition
-    morphology.ts         ← stage 6: prefix/suffix decomposition (9+25 rules)
-    semanticFields.ts     ← stage 6: lemma → semantic field (~2,400 mappings)
-    emitter.ts            ← stage 7: token emission with priority resolution
-    vocabulary.ts         ← token ↔ ID registry
-    data.ts               ← relation map (~245 entries) + function words (~95)
-  tests/
-    examples.test.ts      ← end-to-end tokenization
-    morphology.test.ts
-    normalizer.test.ts
-    structure.test.ts
-training/
-  colab_train_fair.py     ← 4-way comparison: CST vs BPE at 8K and 32K vocab
-  colab_train.py          ← GPT-2 training script
-  arabic_experiment_v2.py ← Arabic CST experiment (download + tokenize + compare)
-  analyze_missed.py       ← Arabic root coverage analysis
-  cap_cst_vocab.py        ← constrain CST vocabulary to a target size V
-  train_bpe.py            ← train SentencePiece BPE baseline
-  train_gpt2.py           ← GPT-2 model utilities
-  requirements.txt
-docs/
-  cst-paper.md            ← full paper (English)
-  cst-paper-ar.md         ← full paper (Arabic / النسخة العربية)
+.
+├─ src/                      ← TypeScript tokenizer + pipeline + tests
+│   ├─ tokenizer/            ← 7-stage core (CSTTokenizer)
+│   ├─ pipeline/             ← download / process / stats / stream
+│   └─ tests/                ← vitest suite
+├─ edge/                     ← Python reference tokenizers + ONNX edge model
+├─ reasoning/                ← reasoning-level tokenizer + data builders
+├─ training/                 ← GPT-2 + BPE baseline training scripts
+├─ scripts/                  ← utilities (pdf, data extract, parity check)
+├─ data/                     ← corpora + tokenizer lookup tables (mostly gitignored)
+├─ docs/
+│   ├─ paper/                ← research paper (EN + AR)
+│   ├─ spec/                 ← tokenizer specs (two-level, Arabic, English)
+│   ├─ media/                ← media posts + press articles
+│   └─ plans/                ← training + reasoning + research plans
+├─ ROADMAP.md                ← single source of truth for what's next
+├─ ARCHITECTURE.md           ← one-page system overview
+├─ DATA.md                   ← data statement, provenance, licensing
+├─ CONTRIBUTING.md
+├─ CODE_OF_CONDUCT.md
+├─ SECURITY.md
+├─ CHANGELOG.md
+└─ CITATION.cff
 ```
+
+For more detail on any subproject, start from [`ARCHITECTURE.md`](ARCHITECTURE.md) and the [`docs/`](docs/README.md) index.
 
 ---
 
@@ -163,3 +159,33 @@ python training/analyze_missed.py
 ```
 
 **Requirements:** `pip install -r training/requirements.txt` + `camel_tools` with morphology DB (`camel_data -i morphology-db-msa-r13`).
+
+---
+
+## Documentation
+
+| Topic | Link |
+|-------|------|
+| One-page architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Roadmap and planned work | [`ROADMAP.md`](ROADMAP.md) |
+| Research paper (EN / AR) | [`docs/paper/`](docs/paper) |
+| Two-level tokenization spec | [`docs/spec/two-level-tokenization.md`](docs/spec/two-level-tokenization.md) |
+| Arabic tokenizer spec | [`docs/spec/cst-arabic-tokenizers.md`](docs/spec/cst-arabic-tokenizers.md) |
+| Training plan | [`docs/plans/TRAINING_PLAN.md`](docs/plans/TRAINING_PLAN.md) |
+| Data statement | [`DATA.md`](DATA.md) |
+
+See [`docs/README.md`](docs/README.md) for the full index.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) and follow the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). For security reports, see [`SECURITY.md`](SECURITY.md).
+
+## Citation
+
+If you use this work, please cite it via the [`CITATION.cff`](CITATION.cff) metadata (GitHub renders a "Cite this repository" button in the sidebar). A Zenodo DOI will be minted at first tagged release.
+
+## License
+
+Released under the [Apache License 2.0](LICENSE).

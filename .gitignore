@@ -1,7 +1,10 @@
-# Dependencies
+# ── Dependencies ────────────────────────────────────────────────
 node_modules/
 
-# Large data files — regenerate with training scripts
+# ── Build output ────────────────────────────────────────────────
+dist/
+
+# ── Large data (regenerate with training scripts) ───────────────
 data/parquet/
 data/tokenized/
 data/arabic/
@@ -9,35 +12,34 @@ data/sentences.json
 data/sentences-1k.json
 data/sentences-100.json
 
-# Reasoning corpora (large JSONL — keep on Drive, not git)
+# ── Reasoning corpora (large JSONL — keep on Drive) ─────────────
 reasoning/out/*.jsonl
 reasoning/tokenized/*.jsonl
 
-# Colab upload staging directories (derived data)
+# ── Colab upload staging (derived data) ─────────────────────────
 training/colab-upload/
 training/colab-upload-fair/
 training/colab-upload-ar/
 training/colab-upload-en/
 training/colab-upload-en.tar.gz
 
-# Python bytecode
-__pycache__/
-
-# Superseded scripts
-training/arabic_experiment.py
-
-# SentencePiece binary models (large)
+# ── SentencePiece binary models (large) ─────────────────────────
 training/**/*.model
 training/**/*.vocab
 
-# Build output
-dist/
+# ── Python bytecode & caches ────────────────────────────────────
+__pycache__/
+.pytest_cache/
 
-# Local planning notes
+# ── Generated PDFs (rebuild with `npm run pdf`) ─────────────────
+docs/**/*.pdf
+
+# ── Local planning notes (scratch & LLM chat dumps) ─────────────
+# Tracked plans live under docs/plans/
 plan/
 
-# OS
-.DS_Store
-
-# USB bundle — local reference material only
+# ── USB bundle (local reference material) ───────────────────────
 usb-bundle/
+
+# ── OS ──────────────────────────────────────────────────────────
+.DS_Store

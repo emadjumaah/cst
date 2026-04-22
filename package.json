@@ -1,14 +1,35 @@
 {
   "name": "cst-poc",
   "version": "0.1.0",
-  "description": "Contextual Semantic Tokenization — Proof of Concept",
+  "description": "Contextual Semantic Tokenization — a linguistically-grounded alternative to subword tokenization for language modeling.",
   "type": "module",
+  "license": "Apache-2.0",
+  "author": "Emad Jumaah",
+  "homepage": "https://github.com/emadjumaah/cst-poc#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/emadjumaah/cst-poc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/emadjumaah/cst-poc/issues"
+  },
+  "keywords": [
+    "tokenization",
+    "nlp",
+    "arabic",
+    "morphology",
+    "language-model",
+    "cst",
+    "contextual-semantic-tokenization"
+  ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "tsx src/pipeline/coverage.ts",
+    "typecheck": "tsc --noEmit",
+    "download": "tsx src/pipeline/download.ts",
     "process": "tsx src/pipeline/process.ts",
     "stats": "tsx src/pipeline/stats.ts",
+    "parity": "python scripts/check_tokenizer_parity.py",
     "pdf": "tsx scripts/generate-pdf.ts"
   },
   "dependencies": {

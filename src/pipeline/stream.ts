@@ -18,7 +18,6 @@ import {
 import { writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { CSTTokenizer } from "../tokenizer/index.ts";
-// @ts-expect-error hyparquet has no TS types
 import { parquetRead } from "hyparquet";
 
 const PARQUET_API =

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+data/
+**/__pycache__/
+**/*.onnx
+**/*.onnx.data
+**/*.pt
+**/*.model
+**/*.vocab
+docs/**/*.pdf
+usb-bundle/
+plan/
+training/colab-upload*/
+reasoning/out/
+reasoning/tokenized/
+package-lock.json
