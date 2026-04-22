@@ -32,7 +32,12 @@ __pycache__/
 .pytest_cache/
 
 # ── Generated PDFs (rebuild with `npm run pdf`) ─────────────────
+# Paper PDFs ARE committed so GitHub links work; ignore other generated PDFs.
 docs/**/*.pdf
+!docs/paper/cst-paper.pdf
+!docs/paper/cst-paper-ar.pdf
+!docs/cst-paper.pdf
+!docs/cst-paper-ar.pdf
 
 # ── Local planning notes (scratch & LLM chat dumps) ─────────────
 # Tracked plans live under docs/plans/
@@ -43,3 +48,8 @@ usb-bundle/
 
 # ── OS ──────────────────────────────────────────────────────────
 .DS_Store
+
+# ── Editor / IDE (local preferences) ────────────────────────────
+.vscode/
+*.code-workspace
+
