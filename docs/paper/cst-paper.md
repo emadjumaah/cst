@@ -6,7 +6,7 @@
 
 ## Abstract
 
-We introduce Contextual Semantic Tokenization (CST), a tokenization method that segments text into linguistically-motivated semantic units rather than statistically-derived subword fragments. The approach originates from an observation about Arabic triconsonantal morphology: Arabic roots and patterns constitute a natural algebraic system in which root × pattern = concept, providing semantic structure directly in the vocabulary. We generalize this insight to a universal framework applicable to any language. CST maps words to a closed set of semantic fields through lemmatization, morphological decomposition, and field resolution, producing structured tokens such as `CMP:write:agent` for "writer" or `REL:causes` for "because." In controlled experiments training GPT-2 language models from scratch on 100K English sentences, we compare CST against SentencePiece BPE at matched vocabulary sizes (8K and 32K) and identical model architectures, ensuring equal parameter counts. Using bits-per-character (BPC) as the evaluation metric, CST achieves 1.13 BPC versus 1.75 BPC for SentencePiece at 8K vocabulary (35.5% reduction) and 1.23 versus 1.65 at 32K vocabulary (25.2% reduction). CST also produces shorter token sequences (22.1 tokens/sentence versus 31.7 for BPE-8K), yielding proportionally faster training. These results suggest that encoding linguistic structure directly into the tokenization layer provides a stronger inductive bias for language modeling than frequency-based subword segmentation — a principle first made visible by Arabic morphology and here generalized to English and beyond.
+We introduce Contextual Semantic Tokenization (CST), a tokenization method that segments text into linguistically-motivated semantic units rather than statistically-derived subword fragments. The approach originates from an observation about Arabic triconsonantal morphology: Arabic roots and patterns constitute a natural algebraic system in which root × pattern = concept, providing semantic structure directly in the vocabulary. We generalize this insight to a universal framework applicable to any language. CST maps words to a closed set of semantic fields through lemmatization, morphological decomposition, and field resolution, producing structured tokens such as `ROOT:write` + `ROLE:agent` for "writer" (with optional legacy fusion as `CMP:write:agent`) or `REL:causes` for "because." In controlled experiments training GPT-2 language models from scratch on 100K English sentences, we compare CST against SentencePiece BPE at matched vocabulary sizes (8K and 32K) and identical model architectures, ensuring equal parameter counts. Using bits-per-character (BPC) as the evaluation metric, CST achieves 1.13 BPC versus 1.75 BPC for SentencePiece at 8K vocabulary (35.5% reduction) and 1.23 versus 1.65 at 32K vocabulary (25.2% reduction). CST also produces shorter token sequences (22.1 tokens/sentence versus 31.7 for BPE-8K), yielding proportionally faster training. These results suggest that encoding linguistic structure directly into the tokenization layer provides a stronger inductive bias for language modeling than frequency-based subword segmentation — a principle first made visible by Arabic morphology and here generalized to English and beyond.
 
 ---
 
@@ -78,26 +78,27 @@ In Arabic, every content word is the product of two orthogonal components:
 
 The composition root × pattern is deterministic and productive: given any root and any pattern, the resulting word's meaning is predictable. This is the algebra. كتب × فاعل = كاتب (writer); علم × مفعلة = مدرسة (school); جمع × استفعال = اجتماع (assembly/meeting).
 
-CST's token type `CMP:field:role` is a direct encoding of this algebra. `CMP:write:agent` is the computational representation of كتب × فاعل. `CMP:know:place` is the computational representation of علم × مفعلة. The Arabic morphological system, studied and refined over fourteen centuries of linguistic scholarship, provides the conceptual foundation. CST makes it computable and language-independent.
+CST's default atomic pair `ROOT:field` + `ROLE:role` is a direct encoding of this algebra. `ROOT:write` + `ROLE:agent` is the computational representation of كتب × فاعل. `ROOT:know` + `ROLE:place` is the computational representation of علم × مفعلة. The legacy fused token `CMP:field:role` remains available for compatibility, but the atomic representation is now the canonical form. The Arabic morphological system, studied and refined over fourteen centuries of linguistic scholarship, provides the conceptual foundation. CST makes it computable and language-independent.
 
 ### 3.2 Generalization to English
 
 English does not have an Arabic-style root system, but it has morphological structure that encodes the same relationships less transparently:
 
-| Arabic (explicit)                | English (recoverable)                                | CST token            |
-| -------------------------------- | ---------------------------------------------------- | -------------------- |
-| كاتب (root:كتب + pattern:فاعل)   | writer (lemma:write + suffix:-er)                    | `CMP:write:agent`    |
-| مكتبة (root:كتب + pattern:مفعلة) | library (semantic field:write + role:place)          | `CMP:write:place`    |
-| مكتوب (root:كتب + pattern:مفعول) | document (semantic field:write + role:instance)      | `CMP:write:instance` |
-| معلم (root:علم + pattern:مفعل)   | teacher (lemma:teach + suffix:-er + semantic causer) | `CMP:know:causer`    |
+| Arabic (explicit morphology)     | Arabic tokens                 | English (recoverable morphology)       | English tokens                |
+| -------------------------------- | ----------------------------- | -------------------------------------- | ----------------------------- |
+| كاتب (root:كتب + pattern:فاعل)   | `ROOT:write` + `ROLE:agent`   | writer (lemma:write + suffix:-er)      | `ROOT:write` + `ROLE:agent`   |
+| مكتبة (root:كتب + pattern:مفعلة) | `ROOT:write` + `ROLE:place`   | library (semantic field:write + place) | `ROOT:write` + `ROLE:place`   |
+| الباحث (root:بحث + pattern:فاعل) | `ROOT:science` + `ROLE:agent` | researcher (lemma:research + suffix)   | `ROOT:science` + `ROLE:agent` |
 
-In Arabic, the extraction is morphological: root and pattern are read from the surface form. In English, the extraction requires lemmatization (write ← writer), affix detection (-er → agent), and semantic field lookup (write → field:write). The output is the same structured token. The Arabic route is more direct; the English route requires more processing. Both arrive at the same vocabulary.
+In Arabic, the extraction is morphological: root and pattern are read from the surface form. In English, the extraction requires lemmatization, affix detection, and semantic field lookup. In both cases, CST converges to the same atomic semantic representation (`ROOT` + `ROLE`).
 
 ### 3.3 Universal Semantic Fields
 
 The semantic fields in CST — write, know, move, create, send, think, gather — are not English categories. They are universal semantic primitives that appear in all human languages because they describe fundamental human activities. McCarthy (1981) and subsequent work in linguistic typology have documented that semantic domains such as motion, cognition, creation, and communication are universal across unrelated language families.
 
-This universality is the key to CST's cross-lingual potential. When Arabic الباحث (researcher) and English "researcher" both map to `CMP:science:agent`, a model training on both languages in the same token space learns a unified representation of the concept. The LIT tokens — function words, proper nouns, unresolved surface forms — carry language-specific information. The semantic tokens carry universal information. A multilingual model built on CST shares its semantic core entirely across languages; only the LIT layer varies.
+This universality is the key to CST's cross-lingual potential. When Arabic الباحث (researcher) and English "researcher" both map to `ROOT:science` + `ROLE:agent`, a model training on both languages in the same token space learns a unified representation of the concept. The LIT tokens — function words, proper nouns, unresolved surface forms — carry language-specific information. The semantic tokens carry universal information. A multilingual model built on CST shares its semantic core entirely across languages; only the LIT layer varies.
+
+This convergence is not a hand-designed interlingua objective; it emerges because independent language-specific analyzers resolve words into the same field-role atoms.
 
 We note, as an observation rather than a design claim, that this property bears a structural resemblance to what constructed universal language projects — such as Esperanto or Interlingua — attempted to achieve deliberately. The distinction is one of origin: those projects imposed a shared vocabulary through explicit design. In CST, the shared semantic layer was not an intended outcome; it arises as a consequence of grounding tokens in morphological and semantic primitives that, as linguistic typology suggests, are independently present in all human languages. Whether this emergent cross-lingual alignment translates into measurable benefits for multilingual modeling is an open empirical question that we leave to future work.
 
@@ -107,18 +108,19 @@ We note, as an observation rather than a design claim, that this property bears 
 
 ### 4.1 Overview
 
-CST is a seven-stage pipeline that transforms raw text into a sequence of typed tokens. Each token belongs to one of six types:
+CST is a seven-stage pipeline that transforms raw text into a sequence of typed tokens. Each token belongs to one of six default types (plus an optional legacy fused type used for backward compatibility):
 
-| Type    | Format           | Example           | Description                                                |
-| ------- | ---------------- | ----------------- | ---------------------------------------------------------- |
-| CMP     | `CMP:field:role` | `CMP:write:agent` | Composed: semantic field + morphological role              |
-| ROOT    | `ROOT:field`     | `ROOT:move`       | Semantic field, no morphological derivation                |
-| REL     | `REL:relation`   | `REL:causes`      | Grammatical or logical relation                            |
-| STR     | `STR:structure`  | `STR:negation`    | Sentence-level structural marker                           |
-| LIT     | `LIT:surface`    | `LIT:the`         | Literal token (function words, entities, unresolved words) |
-| SPECIAL | `[PAD]`, `[UNK]` | `[UNK]`           | Padding and unknown tokens                                 |
+| Type         | Format           | Example           | Description                                                |
+| ------------ | ---------------- | ----------------- | ---------------------------------------------------------- |
+| ROOT         | `ROOT:field`     | `ROOT:move`       | Semantic field (core atom)                                 |
+| ROLE         | `ROLE:role`      | `ROLE:agent`      | Morphological/functional role atom                         |
+| REL          | `REL:relation`   | `REL:causes`      | Grammatical or logical relation                            |
+| STR          | `STR:structure`  | `STR:negation`    | Sentence-level structural marker                           |
+| LIT          | `LIT:surface`    | `LIT:the`         | Literal token (function words, entities, unresolved words) |
+| SPECIAL      | `[PAD]`, `[UNK]` | `[UNK]`           | Padding and unknown tokens                                 |
+| CMP (legacy) | `CMP:field:role` | `CMP:write:agent` | Optional fused compatibility token                         |
 
-The CMP token directly encodes the Arabic algebra: field = root semantic domain, role = pattern operator. ROOT encodes a semantic field without a recoverable morphological role. REL and STR encode sentence-level structure. LIT is the fallback for words that do not participate in the semantic algebra.
+In default atomic mode, `ROOT` and `ROLE` jointly encode the Arabic algebra: field = root semantic domain, role = pattern operator. `ROOT` can appear alone when no reliable role is recovered. `CMP` is retained as an optional fused compatibility form. `REL` and `STR` encode sentence-level structure. `LIT` is the fallback for words that do not participate in the semantic algebra.
 
 ### 4.2 Pipeline Stages
 
@@ -155,7 +157,7 @@ The mapping from affix to role mirrors the Arabic pattern system: where Arabic u
 3. If the word appears in the relation map (~245 entries covering prepositions, conjunctions, modals, quantifiers, adverbs) → `REL:relation`
 4. If the word is a function word (~95 entries: articles, pronouns, auxiliaries) → `LIT:surface`
 5. The morphological root is looked up in a semantic field dictionary (~2,400 lemma-to-field mappings covering ~45 universal fields). A silent-e recovery heuristic (e.g., _writ_ → _write_) and nested suffix stripping expand coverage. If a field is found:
-   - With a morphological role → `CMP:field:role` (e.g., _writer_ → `CMP:write:agent`)
+   - With a morphological role → `ROOT:field` + `ROLE:role` (e.g., _writer_ → `ROOT:write` + `ROLE:agent`; legacy fused form: `CMP:write:agent`)
    - Without a role → `ROOT:field` (e.g., _write_ → `ROOT:write`)
 6. Fallback → `LIT:surface`
 
@@ -319,11 +321,11 @@ CST converges faster and starts from a lower initial loss. At epoch 1, CST-8K al
 
 We identify three mechanisms through which CST improves language modeling:
 
-**Sequence compression.** CST represents each content word as a single token (ROOT or CMP), whereas BPE may split it into 2–4 subword fragments. Shorter sequences mean the model's self-attention operates over a more compact representation of the same information, reducing the distance between semantically related tokens.
+**Sequence compression.** CST represents each content word as one semantic atom (`ROOT`) plus an optional role atom (`ROLE`), whereas BPE may split it into 2–4 opaque subword fragments. The resulting sequences remain compact while preserving interpretable structure, reducing the distance between semantically related concepts.
 
-**Structured inductive bias.** CST tokens explicitly encode semantic fields and morphological roles. The token `CMP:write:agent` signals that this word belongs to the _write_ semantic cluster and functions as an _agent_. The model does not need to learn these relationships from raw co-occurrence statistics — they are provided directly in the input representation. This is the computational realization of the Arabic algebra: the model receives root × pattern as structured input rather than recovering it implicitly from data.
+**Structured inductive bias.** CST tokens explicitly encode semantic fields and morphological roles. The pair `ROOT:write` + `ROLE:agent` signals that this word belongs to the _write_ semantic cluster and functions as an _agent_. The model does not need to learn these relationships from raw co-occurrence statistics — they are provided directly in the input representation. This is the computational realization of the Arabic algebra: the model receives root × pattern as structured input rather than recovering it implicitly from data.
 
-**Field-level generalization.** Words mapped to the same semantic field share a token prefix. "Writer," "writing," "written," and "wrote" all produce tokens beginning with `write`, differing only in role. This enables the model to generalize across morphological variants without needing to see each surface form in training. In Arabic, this generalization is automatic: any word derived from كتب shares root identity in the morphological representation. CST makes the equivalent generalization available to models trained on English.
+**Field-level generalization.** Words mapped to the same semantic field share the same `ROOT` token. "Writer," "writing," "written," and "wrote" all emit `ROOT:write`, differing only in optional `ROLE:*` refinements. This enables the model to generalize across morphological variants without needing to see each surface form in training. In Arabic, this generalization is automatic: any word derived from كتب shares root identity in the morphological representation. CST makes the equivalent generalization available to models trained on English.
 
 ### 7.2 Arabic Validation
 
@@ -349,10 +351,12 @@ Because the semantic tokens are identical across languages, a model pretrained o
 
 A key architectural property of CST is that its semantic vocabulary (~846 tokens) is bounded and language-agnostic. The number of universal semantic fields is finite. As corpus size grows, the rate of new LIT tokens decreases sublinearly, since most content words eventually map to existing fields as the dictionary expands.
 
-In contrast, BPE vocabularies scale linearly with linguistic diversity. A multilingual BPE tokenizer must allocate vocabulary slots to language-specific character sequences. CST's semantic fields are language-agnostic: _write_ in English, _écrire_ in French, _كتب_ in Arabic, and _書く_ in Japanese all map to the same field. This has a direct consequence: two languages can share one model if they share the CST semantic token space — which they do by construction. An English sentence and its Arabic translation produce overlapping token sequences:
+In contrast, BPE vocabularies scale linearly with linguistic diversity. A multilingual BPE tokenizer must allocate vocabulary slots to language-specific character sequences. CST's semantic fields are language-agnostic: _write_ in English, _écrire_ in French, _كتب_ in Arabic, and _書く_ in Japanese all map to the same field. This has a direct consequence: two languages can share one model if they share the CST semantic token space — which they do by construction. An English sentence and its Arabic translation can produce overlapping atomic sequences:
 
-- English: `[CMP:write:agent] [CMP:send:past] [REL:to] [CMP:know:causer]`
-- Arabic: `[CMP:write:agent] [CMP:send:past] [REL:to] [CMP:know:causer]`
+- English: `[ROOT:write] [ROLE:agent] [REL:in] [ROOT:write] [ROLE:place]`
+- Arabic: `[ROOT:write] [ROLE:agent] [REL:in] [ROOT:write] [ROLE:place]`
+
+This overlap is generated independently by each language-specific analyzer; the shared atoms emerge from mapping, not from manual bilingual alignment.
 
 The model learns in concept space. Languages are different surfaces over the same semantic structure.
 
@@ -454,40 +458,40 @@ Trier, J. (1931). _Der deutsche Wortschatz im Sinnbezirk des Verstandes_. Heidel
 
 **Input:** "The researchers discovered that rewriting the algorithm significantly improved computational efficiency."
 
-| Token                | Type | Explanation                                      |
-| -------------------- | ---- | ------------------------------------------------ |
-| `STR:past`           | STR  | Past tense detected ("discovered")               |
-| `LIT:the`            | LIT  | Function word                                    |
-| `CMP:science:agent`  | CMP  | "researchers" → field _science_, role _agent_    |
-| `CMP:know:past`      | CMP  | "discovered" → field _know_, role _past_         |
-| `REL:that`           | REL  | Complementizer                                   |
-| `CMP:write:repeat`   | CMP  | "rewriting" → field _write_, role _repeat_       |
-| `LIT:the`            | LIT  | Function word                                    |
-| `ROOT:think`         | ROOT | "algorithm" → field _think_                      |
-| `CMP:quality:manner` | CMP  | "significantly" → field _quality_, role _manner_ |
-| `CMP:fix:past`       | CMP  | "improved" → field _fix_, role _past_            |
-| `CMP:think:quality`  | CMP  | "computational" → field _think_, role _quality_  |
-| `CMP:work:state`     | CMP  | "efficiency" → field _work_, role _state_        |
+| Token                          | Type      | Explanation                                      |
+| ------------------------------ | --------- | ------------------------------------------------ |
+| `STR:past`                     | STR       | Past tense detected ("discovered")               |
+| `LIT:the`                      | LIT       | Function word                                    |
+| `ROOT:science` + `ROLE:agent`  | ROOT+ROLE | "researchers" → field _science_, role _agent_    |
+| `ROOT:know` + `ROLE:past`      | ROOT+ROLE | "discovered" → field _know_, role _past_         |
+| `REL:that`                     | REL       | Complementizer                                   |
+| `ROOT:write` + `ROLE:repeat`   | ROOT+ROLE | "rewriting" → field _write_, role _repeat_       |
+| `LIT:the`                      | LIT       | Function word                                    |
+| `ROOT:think`                   | ROOT      | "algorithm" → field _think_                      |
+| `ROOT:quality` + `ROLE:manner` | ROOT+ROLE | "significantly" → field _quality_, role _manner_ |
+| `ROOT:fix` + `ROLE:past`       | ROOT+ROLE | "improved" → field _fix_, role _past_            |
+| `ROOT:think` + `ROLE:quality`  | ROOT+ROLE | "computational" → field _think_, role _quality_  |
+| `ROOT:work` + `ROLE:state`     | ROOT+ROLE | "efficiency" → field _work_, role _state_        |
 
 **BPE-8K segmentation:** `▁The ▁research ers ▁discover ed ▁that ▁re writ ing ▁the ▁algorithm ▁significant ly ▁improv ed ▁comput ational ▁effic iency` (17 tokens)
 
-**CST:** 12 tokens. **BPE-8K:** 17 tokens. CST captures semantic relationships that BPE fragments lose.
+**CST (atomic):** sequence shown in compact `ROOT+ROLE` notation where composed words emit two runtime tokens. CST captures semantic relationships that BPE fragments lose.
 
 **Cross-lingual example:** The Arabic equivalent — "اكتشف الباحثون أن إعادة كتابة الخوارزمية حسّنت الكفاءة الحسابية بشكل ملحوظ" — produces a largely overlapping CST sequence, because Arabic morphology delivers the root-pattern decomposition directly:
 
-| Token               | Type | Arabic source                                         |
-| ------------------- | ---- | ----------------------------------------------------- |
-| `STR:past`          | STR  | Sentence-level past tense                             |
-| `CMP:know:past`     | CMP  | اكتشف — root ك-ش-ف (know), pattern افتعل (past)       |
-| `CMP:science:agent` | CMP  | الباحثون — root ب-ح-ث (science), pattern فاعل (agent) |
-| `REL:that`          | REL  | أن                                                    |
-| `CMP:write:repeat`  | CMP  | إعادة كتابة — root ك-ت-ب (write), إعادة (repeat)      |
-| `ROOT:think`        | ROOT | الخوارزمية — field _think_                            |
-| `CMP:fix:past`      | CMP  | حسّنت — root ح-س-ن (fix), pattern فعّل (past)         |
-| `CMP:work:state`    | CMP  | الكفاءة — field _work_, role _state_                  |
-| `CMP:think:quality` | CMP  | الحسابية — field _think_, role _quality_              |
+| Token                         | Type      | Arabic source                                         |
+| ----------------------------- | --------- | ----------------------------------------------------- |
+| `STR:past`                    | STR       | Sentence-level past tense                             |
+| `ROOT:know` + `ROLE:past`     | ROOT+ROLE | اكتشف — root ك-ش-ف (know), pattern افتعل (past)       |
+| `ROOT:science` + `ROLE:agent` | ROOT+ROLE | الباحثون — root ب-ح-ث (science), pattern فاعل (agent) |
+| `REL:that`                    | REL       | أن                                                    |
+| `ROOT:write` + `ROLE:repeat`  | ROOT+ROLE | إعادة كتابة — root ك-ت-ب (write), إعادة (repeat)      |
+| `ROOT:think`                  | ROOT      | الخوارزمية — field _think_                            |
+| `ROOT:fix` + `ROLE:past`      | ROOT+ROLE | حسّنت — root ح-س-ن (fix), pattern فعّل (past)         |
+| `ROOT:work` + `ROLE:state`    | ROOT+ROLE | الكفاءة — field _work_, role _state_                  |
+| `ROOT:think` + `ROLE:quality` | ROOT+ROLE | الحسابية — field _think_, role _quality_              |
 
-The semantic tokens are identical. Only language-specific function words differ. This is the cross-lingual property of CST made concrete: Arabic morphology directly produces the same token representation that English requires a processing pipeline to recover.
+The atomic semantic pairs are identical. Only language-specific function words differ. This is the cross-lingual property of CST made concrete: Arabic morphology directly produces the same representation that English requires a processing pipeline to recover.
 
 ---
 
