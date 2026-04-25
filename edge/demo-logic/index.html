@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CST Tiny Brain — Logic v0.1</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --bg2: #1a1d27;
+        --bg3: #252836;
+        --text: #e4e4e7;
+        --dim: #9ca3af;
+        --border: #2d3040;
+        --gold: #d4a853;
+        --green: #4ade80;
+        --red: #f87171;
+        --cyan: #67e8f9;
+        --font: "Inter", "Segoe UI", system-ui, sans-serif;
+        --mono: "IBM Plex Mono", "Menlo", monospace;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .wrap {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      h1 {
+        font-size: 22px;
+        letter-spacing: 0.3px;
+        font-weight: 600;
+      }
+      h1 small {
+        color: var(--dim);
+        font-weight: 400;
+        font-size: 14px;
+        margin-left: 8px;
+      }
+      .badge {
+        padding: 4px 10px;
+        background: var(--bg3);
+        color: var(--cyan);
+        border-radius: 12px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .panel {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+      .panel h2 {
+        font-size: 12px;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .tab {
+        padding: 8px 14px;
+        background: var(--bg2);
+        color: var(--dim);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-family: var(--font);
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .tab.active {
+        background: var(--bg3);
+        color: var(--gold);
+        border-color: var(--gold);
+      }
+
+      .examples {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .chip {
+        padding: 5px 10px;
+        background: var(--bg3);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: var(--font);
+      }
+      .chip:hover {
+        border-color: var(--gold);
+        color: var(--gold);
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 70px;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: var(--mono);
+        font-size: 14px;
+        resize: vertical;
+      }
+      textarea:focus {
+        outline: none;
+        border-color: var(--gold);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 10px;
+      }
+      button.primary {
+        padding: 8px 16px;
+        background: var(--gold);
+        color: #111;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .meta {
+        color: var(--dim);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .tok-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        line-height: 1.6;
+      }
+      .tok {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-family: var(--mono);
+        font-size: 12px;
+        border: 1px solid transparent;
+      }
+      .b-L {
+        background: #3a1f5a;
+        color: #d0a8ff;
+      }
+      .b-Q {
+        background: #1f4a3a;
+        color: #9ce7cd;
+      }
+      .b-R {
+        background: #1f3a5a;
+        color: #9cc8ff;
+      }
+      .b-T {
+        background: #5a2f1f;
+        color: #ffc8a8;
+      }
+      .b-M {
+        background: #5a1f4a;
+        color: #ffa8d8;
+      }
+      .b-RO {
+        background: #5a4a1f;
+        color: #ffe4a8;
+      }
+      .b-C {
+        background: #2a3a1f;
+        color: #c8ff9c;
+      }
+      .b-A {
+        background: #5a3a1f;
+        color: #ffbf87;
+      }
+      .b-S {
+        background: #1f5a5a;
+        color: #a8ffff;
+      }
+      .b-V {
+        background: #4a1f5a;
+        color: #e4a8ff;
+      }
+      .b-N {
+        background: #1f5a3a;
+        color: #a8ffcc;
+      }
+      .b-SPECIAL {
+        background: var(--bg3);
+        color: var(--dim);
+      }
+
+      .answer {
+        font-family: var(--mono);
+        font-size: 28px;
+        font-weight: 600;
+        padding: 14px;
+        border-radius: 10px;
+        background: var(--bg3);
+        display: inline-block;
+        min-width: 140px;
+        text-align: center;
+      }
+      .answer.ok {
+        color: var(--green);
+      }
+      .answer.bad {
+        color: var(--red);
+      }
+      .answer.unk {
+        color: var(--dim);
+      }
+      .answer.eq {
+        color: var(--cyan);
+        font-size: 22px;
+      }
+
+      .cot-row {
+        margin-bottom: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .cot-row::before {
+        content: "→";
+        color: var(--dim);
+        font-family: var(--mono);
+        margin-right: 4px;
+        align-self: center;
+      }
+      .cot-block {
+        margin-bottom: 12px;
+      }
+      .cot-gloss {
+        color: var(--cyan);
+        font-size: 13px;
+        font-style: italic;
+        margin: 2px 0 4px 18px;
+        opacity: 0.85;
+      }
+
+      .cot-human {
+        list-style: none;
+        counter-reset: step;
+        font-family: var(--font);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .cot-human li {
+        counter-increment: step;
+        padding: 6px 10px 6px 40px;
+        border-left: 2px solid var(--border);
+        margin-bottom: 6px;
+        position: relative;
+        color: var(--text);
+      }
+      .cot-human li::before {
+        content: counter(step);
+        position: absolute;
+        left: 10px;
+        top: 6px;
+        width: 22px;
+        height: 22px;
+        border-radius: 11px;
+        background: var(--bg3);
+        color: var(--gold);
+        font-family: var(--mono);
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+      }
+      .cot-human li.final {
+        border-left-color: var(--gold);
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .cot-human li.final::before {
+        background: var(--gold);
+        color: #111;
+      }
+      .cot-human .empty {
+        color: var(--dim);
+        font-style: italic;
+      }
+
+      .answer-gloss {
+        color: var(--dim);
+        font-size: 14px;
+        margin-top: 10px;
+        font-family: var(--font);
+      }
+
+      .task-note {
+        background: #3a2a1f;
+        color: #ffbf87;
+        border: 1px solid #5a3a1f;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        margin-bottom: 10px;
+        line-height: 1.5;
+      }
+
+      #ids {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--dim);
+        word-break: break-all;
+      }
+
+      footer {
+        color: var(--dim);
+        font-size: 11px;
+        margin-top: 24px;
+        text-align: center;
+      }
+      footer code {
+        font-family: var(--mono);
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>CST Tiny Brain <small>logic v0.1</small></h1>
+        <span class="badge" id="vocab-badge">— tokens</span>
+      </header>
+
+      <div class="tabs" id="tabs"></div>
+
+      <div class="panel">
+        <h2>Input</h2>
+        <div class="examples" id="examples"></div>
+        <div id="task-note" class="task-note" style="display: none"></div>
+        <textarea id="input" placeholder="type a logic expression…"></textarea>
+        <div class="row">
+          <button class="primary" id="run-btn">Run</button>
+          <span class="meta" id="meta"></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Reasoning</h2>
+        <ol id="cot-human" class="cot-human"></ol>
+      </div>
+
+      <div class="panel">
+        <h2>Answer</h2>
+        <div class="answer unk" id="answer">—</div>
+        <div class="answer-gloss" id="answer-gloss"></div>
+      </div>
+
+      <div class="panel">
+        <h2>CST-logic tokens</h2>
+        <div class="tok-row" id="tokens"></div>
+        <div style="height: 8px"></div>
+        <div id="ids"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Chain of thought (CST tokens)</h2>
+        <div id="cot"></div>
+      </div>
+
+      <footer>
+        Backend: stubbed reasoner (deterministic). Drop <code>model_logic.onnx</code> into
+        <code>edge/demo-logic/public/</code> to switch to the trained transformer.
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

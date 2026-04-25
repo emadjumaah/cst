@@ -30,9 +30,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install minimal lint deps
+      - name: Install Python QA deps
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          pip install ruff pytest
       - name: Ruff syntax check
         run: ruff check training/ --select=E9,F63,F7,F82 --output-format=concise
+      - name: CST tokenizer projection coverage guard
+        run: python -m pytest edge/training/tests/test_projection_coverage.py -q

@@ -1,0 +1,32 @@
+{
+  "syllogisms.jsonl": {
+    "records": 3000,
+    "default_tokens": 162998,
+    "reasoning_tokens": 159998,
+    "compression_ratio": 0.9815948661946773
+  },
+  "_vocab": {
+    "default": {
+      "en": {
+        "size": 35,
+        "unique_observed": 33,
+        "oov_fraction": 0.0
+      },
+      "ar": {
+        "size": 4,
+        "unique_observed": 0,
+        "oov_fraction": 0.0
+      }
+    },
+    "reasoning": {
+      "size": 34,
+      "unique_observed": 32,
+      "oov_fraction": 0.0
+    }
+  },
+  "_totals": {
+    "default_tokens": 162998,
+    "reasoning_tokens": 159998,
+    "compression_ratio": 0.9815948661946773
+  }
+}

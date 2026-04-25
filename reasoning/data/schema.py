@@ -39,6 +39,12 @@ class Meta:
     translated_from: str | None = None
     translation_quality: float | None = None
     difficulty: Difficulty = "medium"
+    # Optional pre-computed CST-token views (arabic-algebra-engine only).
+    # When present, the tokenizer uses them verbatim for the reasoning
+    # side instead of re-deriving tokens from NL prose.
+    question_cst: list[str] | None = None
+    cot_cst: list[list[str]] | None = None
+    answer_cst: list[str] | None = None
 
 
 @dataclass
@@ -53,6 +59,13 @@ class Record:
 
     def to_json(self) -> str:
         d = asdict(self)
+        # Drop None-valued optional CST fields so non-algebra records
+        # stay lean.
+        meta = d.get("meta") or {}
+        for k in ("question_cst", "cot_cst", "answer_cst",
+                  "translated_from", "translation_quality"):
+            if meta.get(k) is None:
+                meta.pop(k, None)
         return json.dumps(d, ensure_ascii=False)
 
 

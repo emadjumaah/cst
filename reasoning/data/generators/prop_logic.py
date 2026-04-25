@@ -84,6 +84,19 @@ def _make(rng: random.Random, depth: int, vars_: list[str]) -> Formula:
     return Formula(op, _make(rng, depth - 1, vars_), _make(rng, depth - 1, vars_))
 
 
+def _make_top(rng: random.Random, depth: int, vars_: list[str]) -> Formula:
+    """Top-level formula builder.
+
+    Boosts the rate of an outer-``not`` head to ~25% so that the trained
+    model actually sees long chains ending in ``not X = Y``. The
+    unbiased sampler puts ``not`` at the root only ~6% of the time,
+    which is not enough to reliably close nested negations.
+    """
+    if depth >= 2 and rng.random() < 0.25:
+        return Formula("not", _make(rng, depth - 1, vars_))
+    return _make(rng, depth, vars_)
+
+
 def _difficulty_params(level: str) -> tuple[int, int]:
     """Return (num_vars, depth) for a difficulty tier."""
     return {"easy": (2, 1), "medium": (3, 2), "hard": (4, 3)}[level]
@@ -185,7 +198,7 @@ def generate(
         level = rng.choices(difficulties, weights=difficulty_mix, k=1)[0]
         n_vars, depth = _difficulty_params(level)
         vars_ = ["p", "q", "r", "s"][:n_vars]
-        formula = _make(rng, depth, vars_)
+        formula = _make_top(rng, depth, vars_)
         env = rng.choice(_assignments(vars_))
         for lang in ("en", "ar"):
             yield _build_record(

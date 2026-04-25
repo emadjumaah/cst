@@ -1,0 +1,12 @@
+{
+  "RO:AGENT": "doer of the action",
+  "RO:PATIENT": "receiver of the action",
+  "RO:GOAL": "destination / target",
+  "RO:SOURCE": "origin / starting point",
+  "RO:INSTRUMENT": "means / tool used",
+  "RO:BENEFICIARY": "for whose benefit",
+  "RO:LOCATION": "where",
+  "RO:TIME": "when",
+  "RO:CAUSE": "why / reason",
+  "RO:MANNER": "how / way"
+}

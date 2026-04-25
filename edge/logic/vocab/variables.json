@@ -1,0 +1,18 @@
+{
+  "V:P": "propositional variable P",
+  "V:Q": "propositional variable Q",
+  "V:R": "propositional variable R",
+  "V:S": "propositional variable S",
+  "V:X": "object variable X",
+  "V:Y": "object variable Y",
+  "V:Z": "object variable Z",
+  "V:W": "object variable W",
+  "V:A": "generic variable A",
+  "V:B": "generic variable B",
+  "V:C": "generic variable C",
+  "V:D": "generic variable D",
+  "V:0": "indexed variable 0",
+  "V:1": "indexed variable 1",
+  "V:2": "indexed variable 2",
+  "V:N": "index variable N"
+}

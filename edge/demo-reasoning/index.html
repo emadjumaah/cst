@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CST Reasoning · tiny brain</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>CST Reasoning <span class="sub">live on-device</span></h1>
+      <div class="controls">
+        <div class="toggle">
+          <button id="mode-fast" class="mode-btn active">
+            ⚡ Fast <small>2.4 MB · 2.05 M</small>
+          </button>
+          <button id="mode-accurate" class="mode-btn">
+            🎯 Accurate <small>12 MB · 11.1 M</small>
+          </button>
+        </div>
+        <span id="status" class="status">loading…</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="picker">
+        <label for="lang-sel">Language:</label>
+        <select id="lang-sel">
+          <option value="all">all</option>
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+        </select>
+        <label for="mood-sel">Category:</label>
+        <select id="mood-sel">
+          <option value="all">all</option>
+        </select>
+        <button id="next-btn">Next example ▶</button>
+      </section>
+
+      <section class="example">
+        <div class="field">
+          <div class="lbl">Question</div>
+          <div id="question" class="prose"></div>
+        </div>
+        <div class="field">
+          <div class="lbl">Gold answer</div>
+          <div id="gold" class="badge"></div>
+        </div>
+      </section>
+
+      <section class="infer">
+        <button id="run-btn" class="run">Score ▸</button>
+        <div id="meta" class="meta"></div>
+      </section>
+
+      <section class="result">
+        <div class="field">
+          <div class="lbl">Predicted</div>
+          <div id="pred" class="badge big"></div>
+        </div>
+        <div class="field">
+          <div class="lbl">Candidate log-probs</div>
+          <table id="scores" class="scores">
+            <thead>
+              <tr>
+                <th>candidate</th>
+                <th>tokens</th>
+                <th>log-p</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <details class="tokens">
+        <summary>Prefix tokens fed to the model</summary>
+        <div id="prefix-view" class="prefix"></div>
+      </details>
+    </main>
+
+    <footer>
+      <span>CST reasoning v0.2 · vocab 1289 · onnxruntime-web</span>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

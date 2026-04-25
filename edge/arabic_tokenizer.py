@@ -149,6 +149,91 @@ _add("decide", "ع.م.د")
 _add("work", "ف.ع.ل", "ن.ف.ذ")
 _add("exist", "م.#", "ب", "ل", "ه", "ف.#")
 
+
+# ═══════════════════════════════════════════════════════════════
+# Phase 1 — Merge in labeled roots imported from the Arabic Algebra
+# Engine workspace via ``edge/import_aae_roots.py``. The JSON file is
+# optional; if absent the tokenizer still runs with the core ~543 roots
+# defined above.
+# ═══════════════════════════════════════════════════════════════
+
+def _load_aae_roots() -> int:
+    """Merge ``edge/artifacts/aae_roots.json`` into ``ARABIC_ROOT_TO_FIELD``.
+
+    Returns the number of new (not-previously-present) roots added. Existing
+    entries are **not** overwritten — the hand-curated mappings at the top of
+    this module always win on collision.
+    """
+    path = Path(__file__).resolve().parent / "artifacts" / "aae_roots.json"
+    if not path.exists():
+        return 0
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    added = 0
+    for root, field in data.items():
+        if root not in ARABIC_ROOT_TO_FIELD:
+            ARABIC_ROOT_TO_FIELD[root] = field
+            added += 1
+    return added
+
+
+_AAE_ROOTS_ADDED = _load_aae_roots()
+
+
+# ═══════════════════════════════════════════════════════════════
+# Phase 2 — Full Arabic root inventory (Zerrouki).
+#
+# ``edge/artifacts/arabic_roots_zerrouki.txt`` is Taha Zerrouki's
+# arabic-roots corpus (GPL, ~9.5K triliteral + quadriliteral roots,
+# Hamzas normalized to ء). Each root is emitted in dotted canonical
+# form ``ك.ت.ب`` and pre-registered during tokenizer construction so
+# every real Arabic root has a deterministic, always-present vocab
+# slot — even ones that never appear in the training corpus.
+#
+# This is the v4 bulk root inventory: it doesn't add field labels
+# (only 1,757 of the 9.5K are semantically mapped), but it guarantees
+# that no legitimate Arabic root will ever be ``[UNK]`` downstream
+# and that the transformer's embedding table reserves a contiguous
+# region for Arabic-root tokens.
+# ═══════════════════════════════════════════════════════════════
+
+ARABIC_ROOTS_ZERROUKI: list[str] = []
+
+
+def _load_zerrouki_roots() -> int:
+    """Return dotted-canonical form of every root in the Zerrouki list.
+
+    Populates module-level ``ARABIC_ROOTS_ZERROUKI`` with entries like
+    ``ك.ت.ب`` (triliteral) or ``س.ر.م.د`` (quadriliteral). Skips lines
+    that are blank, comments, or shorter than 3 characters.
+    """
+    path = Path(__file__).resolve().parent / "artifacts" / "arabic_roots_zerrouki.txt"
+    if not path.exists():
+        return 0
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return 0
+    seen: set[str] = set()
+    for line in text.splitlines():
+        raw = line.strip()
+        if not raw or raw.startswith("#"):
+            continue
+        if len(raw) < 3 or len(raw) > 5:
+            # Zerrouki list is triliteral+quadriliteral; skip anything else.
+            continue
+        dotted = ".".join(list(raw))
+        if dotted not in seen:
+            seen.add(dotted)
+            ARABIC_ROOTS_ZERROUKI.append(dotted)
+    return len(ARABIC_ROOTS_ZERROUKI)
+
+
+_ZERROUKI_ROOTS_COUNT = _load_zerrouki_roots()
+
+
 # ═══════════════════════════════════════════════════════════════
 # Arabic function words → CST tokens (aligned with cst-spec.ts v1.0)
 #
@@ -195,15 +280,18 @@ ARABIC_REL_MAP = {
     "حاليا": "REL:now", "حالياً": "REL:now",
 }
 
-# Words that emit as LIT:<word> (personal pronouns, auxiliaries, particles)
+# Words that emit as LIT:<word> (personal pronouns, particles)
+#
+# NOTE: v3 removed كان وأخواتها (auxiliary verbs) from this set. They used
+# to short-circuit to LIT, contributing ~80K LIT occurrences for a handful
+# of forms that CAMeL can analyze correctly as verbs of the root ك.و.ن etc.
+# Letting them flow through morphology yields proper CMP:exist:* tokens.
 ARABIC_LIT_WORDS = {
     # Personal pronouns → LIT (like English I/he/she)
     "هو", "هي", "هم", "هن", "أنا", "نحن", "أنت", "أنتم",
     "أنتِ", "أنتن", "أنتنّ", "هما",
     # Possessive/reflexive
     "نفس", "ذات",
-    # Auxiliaries (كان وأخواتها) → LIT
-    "كان", "يكون", "أصبح", "ظل", "بات", "صار", "ليس",
     # Subordinating particles → LIT
     "إن", "أن", "أنّ", "لعل",
     # Vocative → LIT (يا has low semantic content)
@@ -241,6 +329,81 @@ ARABIC_NUMERALS = {
     "تسعة", "عشرة", "عشر", "مئة", "مائة", "ألف", "مليون", "ثلث",
 }
 
+# ═══════════════════════════════════════════════════════════════
+# v3 additions — calendar months, punctuation, digit normalization
+# ═══════════════════════════════════════════════════════════════
+
+# Gregorian month names (English + Levantine) → TIME:month:<en>. These
+# were appearing ~5,000 times each as LIT tokens in v2 because CAMeL
+# tags them as NTWS (non-triliteral stem / foreign).
+ARABIC_MONTHS = {
+    "يناير": "TIME:month:jan", "كانون الثاني": "TIME:month:jan",
+    "فبراير": "TIME:month:feb", "شباط": "TIME:month:feb",
+    "مارس": "TIME:month:mar", "آذار": "TIME:month:mar",
+    "أبريل": "TIME:month:apr", "نيسان": "TIME:month:apr",
+    "مايو": "TIME:month:may", "أيار": "TIME:month:may",
+    "يونيو": "TIME:month:jun", "حزيران": "TIME:month:jun",
+    "يوليو": "TIME:month:jul", "تموز": "TIME:month:jul",
+    "أغسطس": "TIME:month:aug", "آب": "TIME:month:aug",
+    "سبتمبر": "TIME:month:sep", "أيلول": "TIME:month:sep",
+    "أكتوبر": "TIME:month:oct", "تشرين الأول": "TIME:month:oct",
+    "نوفمبر": "TIME:month:nov", "تشرين الثاني": "TIME:month:nov",
+    "ديسمبر": "TIME:month:dec", "كانون الأول": "TIME:month:dec",
+}
+
+# Arabic punctuation code points to strip before morphological analysis.
+# They live inside the Arabic Unicode block so the simple letter regex
+# pulls them in with words like ذلك،. Removing them prevents 100K+
+# spurious LIT:، occurrences and fusion noise on word boundaries.
+_ARABIC_PUNCT_RE = re.compile(
+    r"[\u060C\u060D\u061B\u061E\u061F\u066A-\u066D\u06D4\u06DD-\u06DE]"
+)
+
+# Latin + Arabic-Indic digit sets (for NUM classification).
+_DIGIT_CLASS = "0-9\u0660-\u0669\u06F0-\u06F9"
+_DIGIT_RE = re.compile(f"^[{_DIGIT_CLASS}]+$")
+_DECIMAL_RE = re.compile(f"^[{_DIGIT_CLASS}]+[.,\u066B][{_DIGIT_CLASS}]+$")
+_PERCENT_RE = re.compile(f"^[{_DIGIT_CLASS}]+[.,\u066B]?[{_DIGIT_CLASS}]*[%\u066A]$")
+
+# Translation table to fold Arabic-Indic digits to ASCII for magnitude checks.
+_DIGIT_FOLD = str.maketrans(
+    "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669"
+    "\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9",
+    "01234567890123456789",
+)
+
+
+def _num_token(raw: str) -> str | None:
+    """Classify a numeric surface form into a typed NUM token.
+
+    Returns one of ``NUM:year`` / ``NUM:percent`` / ``NUM:decimal`` /
+    ``NUM:small`` / ``NUM:measure`` or ``None`` if ``raw`` is not numeric.
+    """
+    if not raw:
+        return None
+    if _PERCENT_RE.match(raw):
+        return "NUM:percent"
+    if _DECIMAL_RE.match(raw):
+        return "NUM:decimal"
+    if _DIGIT_RE.match(raw):
+        folded = raw.translate(_DIGIT_FOLD)
+        try:
+            n = int(folded)
+        except ValueError:
+            return "NUM:small"
+        if 1800 <= n <= 2100:
+            return "NUM:year"
+        if n < 1000:
+            return "NUM:small"
+        return "NUM:measure"
+    return None
+
+
+# Letters we will try to substitute for the CAMeL weak-root placeholder `#`.
+# Order matters: و is the most common weak root letter in classical
+# reconstructions, so we try it first for a deterministic canonical form.
+_WEAK_SUBSTITUTES = ("و", "ي", "ا", "ء", "ى")
+
 PROCLITICS = ["وال", "وب", "ول", "وك", "فال", "فب", "فل", "ال", "لل", "بال", "كال"]
 # NOTE: `PROCLITICS` is no longer used for naive prefix stripping — CAMeL
 # Tools decomposes clitics natively (prc0/prc1/prc2/prc3/enc0). Kept here
@@ -259,40 +422,83 @@ def _strip_vowels(text):
     return re.sub(r'[\u064B-\u0650\u0652\u0670]', '', text)
 
 ARABIC_PATTERN_TO_ROLE = {
-    # Active participle (فَاعِل) → agent (the doer)
-    "فاعل": "agent", "فاعلة": "agent", "فاعلون": "agent",
-    "فاعلات": "agent", "فاعلين": "agent", "فواعل": "agent",
-    # Passive participle (مَفْعُول) → patient (the receiver)
-    "مفعول": "patient", "مفعولة": "patient",
-    # Place noun (مَفْعَلَة / مَفْعَل)
-    "مفعلة": "place", "مفاعل": "place",
-    # Instrument (مِفْعَال / مِفْعَل)
-    "مفعال": "place",
-    # Verbal nouns → instance (the thing) / state (the act)
-    "فعال": "instance",       # كِتَاب (book)
-    "فعول": "instance",       # دُخُول (entry)
-    "فعل": "instance",        # عِلْم (knowledge)
-    "فعالة": "state",         # كِتَابَة (writing)
-    "فعولة": "state",         # عُبُودَة
-    "تفعيل": "instance",      # Form II VN: تعليم (teaching)
-    "تفعلة": "instance",      # Form II VN variant
-    "انفعال": "instance",     # Form VII VN
-    "افتعال": "instance",     # Form VIII VN
-    "استفعال": "instance",    # Form X VN
-    # Mutual action (Form VI)
-    "تفاعل": "mutual",        # تَعَاوُن (cooperation)
-    # Process (Form III verbal noun)
-    "مفاعلة": "process",      # مُكَاتَبَة (correspondence)
-    # Intensifier (فَعَّال — has shadda, distinct from فَعَال)
-    "فعّال": "intensifier", "فعّالة": "intensifier",
-    # Form II active participle (مُفَعِّل → causer)
-    "مفعّل": "causer", "مفعّلة": "causer",
-    # Form X active participle (مُسْتَفْعِل → seeker)
-    "مستفعل": "seeker", "مستفعلة": "seeker",
-    # Quality / adjective patterns
-    "فعيل": "quality", "فعيلة": "quality",
-    "فعلان": "quality",
-    "فعلى": "quality",        # feminine elative
+    # CAMeL Tools encodes patterns with ASCII digits ``1/2/3`` for the
+    # root consonant slots and Arabic letters for affixes; diacritics
+    # (fatha/damma/kasra/sukun) carry between slots. We strip the short
+    # vowels (keeping shadda ``ّ``) and normalize hamzat-wasl ``ٱ`` → ``ا``
+    # before lookup. See ``_extract_role``.
+    #
+    # Keys below are therefore CAMeL-shape patterns, *not* the Arabic
+    # wazn names (فاعل / مفعول / ...). Comments give the wazn for clarity.
+
+    # فاعل — active participle → agent (the doer)
+    "1ا23":    "agent",   # كاتب / عالم / قاتل
+    "1ا23ة":   "agent",   # كاتبة
+    "1ا23ه":   "agent",   # كاتبة (alt tāʾ-hāʾ spelling)
+    "1ا23ات":  "agent",   # كاتبات
+    "1ا23ون":  "agent",   # كاتبون
+    "1ا23ين":  "agent",   # كاتبين
+
+    # مفعول — passive participle → patient (the receiver)
+    "م12و3":   "patient", # مكتوب / معلوم
+    "م12و3ة":  "patient", # مكتوبة
+    "م12و3ه":  "patient",
+
+    # مَفْعَلَة / مَفْعِلَة — place (feminine forms disambiguate from VN)
+    "م123ة":   "place",   # مكتبة / مدرسة
+    "م123ه":   "place",
+    "م12ّ3ة":  "place",   # مدرسة (with shadda on R2)
+    "م12ّ3ه":  "place",
+
+    # مِفْعَال — instrument
+    "م12ا3":   "place",   # مفتاح / مسمار / منشار (grouped with place)
+
+    # فِعال / فُعول — Form I verbal noun → instance
+    "12ا3":    "instance",  # كتاب / كلام
+    "12و3":    "instance",  # دخول
+    "12ّا3":   "instance",  # كتاب (geminate variant; also intensifier — see below)
+
+    # فِعالة — Form I verbal noun of state → state
+    "12ا3ة":   "state",     # كتابة / قراءة
+    "12ا3ه":   "state",
+
+    # تفعيل — Form II verbal noun → instance
+    "ت12ي3":   "instance",
+
+    # انفعال — Form VII verbal noun
+    "ان12ا3":  "instance",
+
+    # افتعال — Form VIII verbal noun
+    "ا1ت2ا3":  "instance",
+
+    # استفعال — Form X verbal noun
+    "است12ا3": "instance",
+
+    # تفاعل — Form VI verbal noun → mutual action
+    "ت1ا23":   "mutual",
+
+    # مفاعلة — Form III verbal noun → process
+    "م1ا23ة":  "process",
+    "م1ا23ه":  "process",
+
+    # مفعِّل — Form II active participle → causer
+    "م12ّ3":   "causer",   # معلّم / مدرّس
+    "م12ّ3ة":  "causer",
+    "م12ّ3ه":  "causer",
+
+    # مستفعِل — Form X active participle → seeker
+    "مست123":  "seeker",   # مستعمل / مستخدم / مستقبل
+
+    # فعيل — adjective → quality
+    "12ي3":    "quality",  # كبير / كريم / جميل
+    "12ي3ة":   "quality",
+    "12ي3ه":   "quality",
+
+    # فعلان — adjective (hungry/thirsty-style) → quality
+    "123ان":   "quality",
+
+    # فعلى — feminine elative → quality
+    "123ى":    "quality",
 }
 
 # POS-based fallback (when pattern doesn't match or is absent)
@@ -302,8 +508,13 @@ POS_TO_ROLE = {
     "adj_num": "quality",
 }
 
-# POS values that indicate named entities → emit LIT:<surface>
+# POS values that indicate named entities → emit NE:<surface>
 NER_POS = frozenset({"noun_prop"})
+
+# CAMeL pseudo-roots that signal the analyzer gave up on triliteral
+# structure. Any word whose analyses are all in this set should be
+# treated as a foreign stem, not shoved into the generic LIT bucket.
+NON_ROOT_MARKERS = frozenset({"NTWS", "PUNC", "DIGIT", "FOREIGN"})
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -395,7 +606,24 @@ _ENC_TAGS = {
 _PGN_TAGS = _ENC_TAGS  # same shape; re-used for verb/content FEATs
 
 
-def _collect_prefix_tokens(a):
+def _is_critical_feat(token: str) -> bool:
+    """Return True for FEAT tokens kept in critical-only mode.
+
+    Critical FEAT inventory keeps generation-relevant agreement and time
+    information while dropping high-inflation markers like definiteness
+    and nominal f/p/d features.
+    """
+    if token.startswith("FEAT:asp:"):
+        return True
+    if token.startswith("FEAT:pron:"):
+        return True
+    if token.startswith("FEAT:") and token.count(":") == 1:
+        # Bundled person-gender-number tag, e.g. FEAT:3mp.
+        return token.split(":", 1)[1] in _PGN_TAGS
+    return False
+
+
+def _collect_prefix_tokens(a, *, critical_feat_only: bool = True):
     """Return the ordered list of CST tokens produced by the clitics of
     a CAMeL analysis, read outer→inner: prc2 (conj) → prc1 (prep/fut) →
     prc0 (article/neg) → prc3 (question)."""
@@ -406,7 +634,13 @@ def _collect_prefix_tokens(a):
                              ("prc3", PRC3_TOKENS)):
         v = a.get(feat_name)
         if v and v != "0" and v != "na" and v in table:
-            out.extend(table[v])
+            if critical_feat_only:
+                out.extend(
+                    tok for tok in table[v]
+                    if not tok.startswith("FEAT:") or _is_critical_feat(tok)
+                )
+            else:
+                out.extend(table[v])
     return out
 
 
@@ -437,6 +671,22 @@ def _pgn_tag(a):
 # Tokenizer
 # ═══════════════════════════════════════════════════════════════
 
+def _weak_expand(root: str):
+    """Yield every substitution of ``#`` in ``root`` with a weak letter."""
+    if "#" not in root:
+        yield root
+        return
+    stack = [root]
+    while stack:
+        cur = stack.pop()
+        i = cur.find("#")
+        if i < 0:
+            yield cur
+            continue
+        for letter in _WEAK_SUBSTITUTES:
+            stack.append(cur[:i] + letter + cur[i + 1 :])
+
+
 def _build_wildcard_index():
     index = dict(ARABIC_ROOT_TO_FIELD)
     weak_letters = set("وياأإآءئؤ")
@@ -459,16 +709,70 @@ def _build_wildcard_index():
 
 
 class ArabicCSTTokenizer:
-    def __init__(self, analyzer):
+    def __init__(
+        self,
+        analyzer,
+        vocab_path=None,
+        cap=None,
+        *,
+        emit_root_pattern=False,
+        emit_space_token=False,
+        emit_atomic_composition=True,
+        critical_feat_only=True,
+    ):
+        """Arabic CST tokenizer.
+
+        Parameters
+        ----------
+        analyzer : CAMeL morphology analyzer (or mock with ``.analyze``).
+        vocab_path : optional path to a frozen vocab JSON.
+            When provided, the tokenizer runs in **frozen mode**: only
+            tokens already in the vocab are emitted; anything else is
+            routed to ``[UNK]``. Semantic tokens (ROOT:*, CMP:*, FEAT:*,
+            REL:*, STR:*, NUM:*, TIME:*) must be present in the file —
+            the builder in :func:`build_frozen_vocab` guarantees this.
+        cap : optional integer. When set alongside ``vocab_path`` only
+            entries with ``id < cap`` are kept from the file; anything
+            past the cap becomes ``[UNK]``. Useful for comparing 8K /
+            16K / 32K runs against the same master vocab.
+        emit_root_pattern : bool, default False.
+            When enabled, content words emit explicit morphological
+            decomposition as ``ROOT:<canonical-root>`` + ``PAT:<pattern>``
+            (when available) instead of ``CMP:<field>:<role>``.
+        emit_space_token : bool, default False.
+            When enabled, emits ``SPACE`` after each tokenized word to
+            preserve explicit word boundaries in the token stream.
+        emit_atomic_composition : bool, default True.
+            When enabled, avoid multi-property ``CMP:<field>:<role>``
+            emissions and split composition into atomic pieces
+            ``ROOT:<field>`` + ``ROLE:<role>``.
+        critical_feat_only : bool, default True.
+            When enabled, emit only critical FEAT markers:
+            ``FEAT:asp:*``, ``FEAT:<pgn>``, and ``FEAT:pron:<pgn>``.
+            Non-critical FEAT markers (``FEAT:def``, ``FEAT:f``,
+            ``FEAT:p``, ``FEAT:d``) are suppressed to reduce sequence
+            length in Arabic runs.
+        """
         self.analyzer = analyzer
         self.vocab: dict[str, int] = {}
         self.next_id = 0
         self.root_index = _build_wildcard_index()
         self.stats = Counter()
+        self.frozen = False
+        self.unk_id = 1   # filled in below
+        self.emit_root_pattern = emit_root_pattern
+        self.emit_space_token = emit_space_token
+        self.emit_atomic_composition = emit_atomic_composition
+        self.critical_feat_only = critical_feat_only
+
+        if vocab_path is not None:
+            self._load_frozen_vocab(vocab_path, cap=cap)
+            return
 
         # Special tokens (aligned with cst-spec.ts v1.0)
         for tok in ["[PAD]", "[UNK]", "[BOS]", "[EOS]", "[SEP]"]:
             self._get_id(tok)
+        self.unk_id = self.vocab["[UNK]"]
 
         # Pre-register ROOT tokens (one per semantic field)
         for f in sorted(set(self.root_index.values())):
@@ -490,60 +794,239 @@ class ArabicCSTTokenizer:
         for t in ("STR:question", "STR:emphasis", "STR:future", "STR:past"):
             self._get_id(t)
 
-        # Pre-register FEAT tokens (definiteness, inflection, enclitics, aspect)
-        self._get_id("FEAT:def")
+        # Pre-register FEAT tokens.
+        if not self.critical_feat_only:
+            self._get_id("FEAT:def")
         for tag in sorted(_PGN_TAGS):
             self._get_id(f"FEAT:{tag}")              # bundled person-gen-num
             self._get_id(f"FEAT:pron:{tag}")         # enclitic pronoun
         for asp in ("p", "i", "c"):
             self._get_id(f"FEAT:asp:{asp}")
-        # Non-default inflection markers for nouns / adjectives (ms is default).
-        for t in ("FEAT:f", "FEAT:p", "FEAT:d"):
-            self._get_id(t)
+        # Non-default noun/adj inflection markers are optional in compact mode.
+        if not self.critical_feat_only:
+            for t in ("FEAT:f", "FEAT:p", "FEAT:d"):
+                self._get_id(t)
+
+        # Optional v5 morphology decomposition tokens.
+        if self.emit_root_pattern:
+            for pattern in sorted(ARABIC_PATTERN_TO_ROLE):
+                self._get_id(f"PAT:{pattern}")
+
+        # Optional atomic composition inventory.
+        if self.emit_atomic_composition:
+            role_values = set(ARABIC_PATTERN_TO_ROLE.values()) | set(POS_TO_ROLE.values())
+            for role in sorted(role_values):
+                self._get_id(f"ROLE:{role}")
+
+        # Optional explicit word-boundary token.
+        if self.emit_space_token:
+            self._get_id("SPACE")
 
         # ROOT:size for numerals
         self._get_id("ROOT:size")
 
+        # v3 typed-literal vocabulary — category prefixes only. Actual
+        # surface forms (NE:محمد, FOREIGN:كوفيد, ...) are added on demand.
+        for t in (
+            "NUM:year", "NUM:small", "NUM:decimal", "NUM:percent", "NUM:measure",
+        ):
+            self._get_id(t)
+        for t in sorted(set(ARABIC_MONTHS.values())):
+            self._get_id(t)
+
+        # v4: pre-register all ~9.5K Arabic roots from the Zerrouki
+        # list as ROOT:<dotted-canonical> tokens. Every real Arabic
+        # root gets a deterministic vocab slot — including rare roots
+        # absent from the training corpus — so frozen-mode tokenizers
+        # emit a real token instead of [UNK] for out-of-distribution
+        # but linguistically valid words.
+        for dotted in ARABIC_ROOTS_ZERROUKI:
+            self._get_id(f"ROOT:{dotted}")
+
+    # ── Frozen vocab support ──────────────────────────────────
+    def _load_frozen_vocab(self, path, cap=None):
+        with open(path, encoding="utf-8") as f:
+            loaded = json.load(f)
+        if cap is not None:
+            loaded = {t: i for t, i in loaded.items() if i < cap}
+        if "[UNK]" not in loaded:
+            raise ValueError(
+                f"frozen vocab at {path} is missing [UNK]; "
+                "every shipped vocab must reserve an UNK slot"
+            )
+        self.vocab = loaded
+        self.next_id = max(loaded.values()) + 1 if loaded else 0
+        self.unk_id = loaded["[UNK]"]
+        self.frozen = True
+
+    def _resolve(self, token):
+        """Return ``(emit_token, id)`` honouring frozen-vocab mode.
+
+        In frozen mode, a missing token becomes ``("[UNK]", unk_id)``
+        and ``stats["unk"]`` is bumped. Callers should use this rather
+        than appending token/id pairs directly so UNK routing is
+        uniform across the word/sentence pipelines.
+        """
+        tid = self.vocab.get(token)
+        if tid is not None:
+            return token, tid
+        if self.frozen:
+            self.stats["unk"] += 1
+            return "[UNK]", self.unk_id
+        new_id = self.next_id
+        self.vocab[token] = new_id
+        self.next_id += 1
+        return token, new_id
+
     def _get_id(self, token):
         if token in self.vocab: return self.vocab[token]
+        if self.frozen:
+            self.stats["unk"] += 1
+            return self.unk_id
         tid = self.next_id; self.vocab[token] = tid; self.next_id += 1
         return tid
 
     def _strip(self, word):
+        # Diacritics + tatweel.
         word = re.sub(r'[\u064B-\u065F\u0670]', '', word)
-        return word.replace('\u0640', '')
+        word = word.replace('\u0640', '')
+        # v3: strip Arabic punctuation that lives inside the Arabic
+        # Unicode block and was leaking through the word-split regex.
+        word = _ARABIC_PUNCT_RE.sub('', word)
+        return word
 
     def _find_field(self, roots):
+        """Look up the semantic field for any root in ``roots``.
+
+        Tries exact match against the wildcard index first. If that
+        fails and the root contains a CAMeL weak placeholder ``#``,
+        substitute each placeholder with every candidate weak letter
+        (و / ي / ا / ء / ى) and retry. This recovers roots like
+        ``#.ح.د`` → و.ح.د (social), ``ك.#.ن`` → ك.و.ن (exist).
+        """
         for r in roots:
-            if r in self.root_index: return self.root_index[r]
+            if not r:
+                continue
+            if r in self.root_index:
+                return self.root_index[r]
+            if "#" in r:
+                for cand in _weak_expand(r):
+                    if cand in self.root_index:
+                        return self.root_index[cand]
         return None
+
+    def _canonical_root(self, r: str) -> str:
+        """Return a stable canonical form of a root for `ROOT:<raw>` emission.
+
+        Substitutes every ``#`` with و so ``ك.#.ن`` and ``ك.و.ن`` share
+        the same raw-root token even when the dictionary didn't resolve
+        a semantic field.
+        """
+        return r.replace("#", "و") if r else r
 
     # ── Core per-word analysis ─────────────────────────────────
     def _best_analysis(self, clean):
-        """Return the first analysis with a usable root, or None.
+        """Return (analysis, all_ntws) for the best CAMeL candidate.
 
-        CAMeL analyzer returns candidates sorted by likelihood. We scan
-        for the first one whose root is a real triliteral (skipping
-        placeholders like NTWS / PUNC / DIGIT / FOREIGN) so downstream
-        feature extraction sees real morphology.
+        ``all_ntws`` is True when CAMeL returned at least one analysis
+        but none carry a real triliteral root — the signal to route to
+        ``FOREIGN:<surface>`` instead of ``LIT``.
+
+        Selection priority (v4):
+
+          1. **Distinct-lex NE** — a ``noun_prop`` analysis whose
+             ``lex`` does not appear in any non-prop analysis. This is
+             the key signal: CAMeL stores distinct lexemes for genuine
+             names (``سُلَيْمان`` vs common ``سَلِيم``, ``القاهِرَة`` vs
+             root-based ``قَهَرَ``). CAMeL's spurious "noun_prop over
+             a common noun" false positives (noun_prop:``عَمَل``
+             sharing lex with noun:``عَمَل``) fail this test.
+
+          2. **Common reading** — the first ``pos != noun_prop``
+             analysis with a real root. Handles ordinary nouns /
+             verbs / adjectives and the ال-prefixed common cases
+             (العمل، الحزب).
+
+          3. **Fallback NE** — first ``noun_prop`` analysis (real
+             or NTWS root) when no common reading is available.
+             Handles ``محمد`` (only ever tagged noun_prop by CAMeL)
+             and foreign place names like ``فرنسا``.
+
+          4. Return ``None`` with ``all_ntws`` set so the caller
+             picks ``FOREIGN:<surface>`` or ``LIT:<surface>``.
+
+        The v3 heuristic of "prefer non-noun_prop always" under-fired
+        NE by ~20x on Arabic Wikipedia because common proper nouns
+        (محمد → ح.م.د → praise) were silently collapsed to ``ROOT:``.
+        The v4 lex-distinctness rule recovers them while still
+        demoting CAMeL's false-positive noun_prop analyses.
         """
         analyses = self.analyzer.analyze(clean)
+        if not analyses:
+            # v4: treat "CAMeL returned nothing" the same as "CAMeL
+            # returned only NTWS" — the caller routes both to
+            # FOREIGN:<surface>, collapsing the v3 LIT explosion of
+            # transliterations (تاموكسفين، فولدمورت، قطالونيين, …)
+            # into the FOREIGN bucket where they belong.
+            return None, True
+
+        prop_analyses: list[dict] = []
+        non_prop_real: list[dict] = []
+        non_prop_lexes: set[str] = set()
+        has_real_root = False
+
         for a in analyses:
             r = a.get("root", "")
-            if r and r not in ("NTWS", "PUNC", "DIGIT", "FOREIGN"):
-                return a
-        return None
+            pos = a.get("pos", "")
+            real = bool(r) and r not in NON_ROOT_MARKERS
+            if real:
+                has_real_root = True
+            if pos == "noun_prop":
+                prop_analyses.append(a)
+            elif real:
+                non_prop_real.append(a)
+                lex = a.get("lex", "")
+                if lex:
+                    non_prop_lexes.add(lex)
+
+        # 1. Distinct-lex NE
+        for a in prop_analyses:
+            lex = a.get("lex", "")
+            if lex and lex not in non_prop_lexes:
+                return a, False
+
+        # 2. Common reading
+        if non_prop_real:
+            return non_prop_real[0], False
+
+        # 3. Fallback NE (no common reading available)
+        if prop_analyses:
+            return prop_analyses[0], False
+
+        return None, not has_real_root
 
     def _extract_role(self, a):
-        """Extract CMP role from camel-tools pattern or POS."""
+        """Extract CMP role from camel-tools pattern or POS.
+
+        CAMeL pattern strings use ASCII digits ``1/2/3`` for root
+        consonant slots and carry diacritics between slots. We strip
+        short vowels (keeping shadda) and normalize hamzat-wasl
+        (``ٱ`` U+0671 → ``ا``) before looking up the role map.
+        """
         pattern = a.get("pattern") or ""
-        norm = _strip_vowels(pattern)
+        norm = _strip_vowels(pattern).replace("\u0671", "\u0627")
         if norm and norm in ARABIC_PATTERN_TO_ROLE:
             return ARABIC_PATTERN_TO_ROLE[norm]
         pos = a.get("pos", "")
         if pos in POS_TO_ROLE:
             return POS_TO_ROLE[pos]
         return None
+
+    def _extract_pattern(self, a):
+        """Extract normalized CAMeL pattern for ``PAT:<pattern>`` emission."""
+        pattern = a.get("pattern") or ""
+        norm = _strip_vowels(pattern).replace("\u0671", "\u0627")
+        return norm or None
 
     def _word_tokens(self, clean):
         """Tokenize a single orthographic word into a list of CST tokens.
@@ -554,10 +1037,13 @@ class ArabicCSTTokenizer:
             [prc0 tokens]        article (ال) / attached negation
             [prc3 tokens]        question أ
             core token           CMP: / ROOT: / LIT:
-            [gender/number FEAT] non-default inflection (f / p / d)
+            [gender/number FEAT] optional non-default inflection (f / p / d)
             [aspect FEAT]        verb only (asp:p / asp:i / asp:c)
             [pgn FEAT]           verb person-gender-number (e.g. 3mp)
             [enclitic pronoun]   FEAT:pron:<tag>
+
+        In ``critical_feat_only`` mode (default), non-critical FEAT
+        markers (article definiteness and nominal f/p/d) are suppressed.
         """
         out = []
 
@@ -566,6 +1052,25 @@ class ArabicCSTTokenizer:
         if clean in ARABIC_STR_TRIGGERS:
             # Handled at sentence level — emit nothing at word position.
             return out
+        if clean in ARABIC_MONTHS:
+            out.append(ARABIC_MONTHS[clean]); self.stats["time"] += 1
+            return out
+
+        # ``ما`` needs POS-aware disambiguation before REL fast-path.
+        # Otherwise it is always captured as REL:what and negation is lost.
+        if clean == "ما":
+            a, _ = self._best_analysis(clean)
+            pos = (a or {}).get("pos", "")
+            if pos == "part_neg":
+                out.append("STR:neg:general"); self.stats["str"] += 1
+            elif pos in ("pron_interrog", "adv_interrog"):
+                out.append("REL:what"); self.stats["rel"] += 1
+            elif pos in ("pron_rel", "adv_rel"):
+                out.append("REL:which"); self.stats["rel"] += 1
+            else:
+                out.append("REL:what"); self.stats["rel"] += 1
+            return out
+
         if clean in ARABIC_REL_MAP:
             out.append(ARABIC_REL_MAP[clean]); self.stats["rel"] += 1
             return out
@@ -577,52 +1082,91 @@ class ArabicCSTTokenizer:
             return out
 
         # 2. Morphological analysis
-        a = self._best_analysis(clean)
+        a, all_ntws = self._best_analysis(clean)
         if a is None:
-            out.append(f"LIT:{clean}"); self.stats["lit"] += 1
+            # CAMeL gave up on triliteral structure. Treat as foreign /
+            # non-Arabic stem rather than collapsing to plain LIT. This
+            # is the main fix for the v2 LIT explosion: words like
+            # أكتوبر / فرنسا / كوفيد that CAMeL tags NTWS.
+            if all_ntws:
+                out.append(f"FOREIGN:{clean}"); self.stats["foreign"] += 1
+            else:
+                out.append(f"LIT:{clean}"); self.stats["lit"] += 1
             return out
 
         pos = a.get("pos", "")
 
-        # 3. Disambiguate ما using the analyzer POS
-        if clean == "ما":
-            if pos == "part_neg":
-                out.append("STR:neg:general"); self.stats["str"] += 1
-            elif pos in ("pron_interrog", "adv_interrog"):
-                out.append("REL:what"); self.stats["rel"] += 1
-            elif pos in ("pron_rel", "adv_rel"):
-                out.append("REL:which"); self.stats["rel"] += 1
-            else:
-                out.append("REL:what"); self.stats["rel"] += 1
-            return out
-
-        # 4. Emit proclitic tokens (conjunction → prep → article → ques)
-        for t in _collect_prefix_tokens(a):
+        # 3. Emit proclitic tokens (conjunction → prep → article → ques)
+        for t in _collect_prefix_tokens(a, critical_feat_only=self.critical_feat_only):
             out.append(t)
             if t.startswith("REL:"): self.stats["rel"] += 1
             elif t.startswith("STR:"): self.stats["str"] += 1
             elif t.startswith("FEAT:"): self.stats["feat"] += 1
 
-        # 5. Named entity (noun_prop) → LIT:<surface>
+        # 4. Named entity (noun_prop) → NE:<surface>
         if pos in NER_POS:
-            out.append(f"LIT:{clean}"); self.stats["ner"] += 1
+            out.append(f"NE:{clean}"); self.stats["ne"] += 1
             # No further FEATs for proper nouns (they are opaque tokens).
             return out
 
-        # 6. Core content token
+        # 5. Core content token
         roots = [a.get("root", "")]
-        field = self._find_field(roots)
-        if not field:
-            out.append(f"LIT:{clean}"); self.stats["lit"] += 1
-            return out
+        raw_root = roots[0] if roots else ""
 
         role = self._extract_role(a)
-        if role:
-            out.append(f"CMP:{field}:{role}"); self.stats["cmp"] += 1
-        else:
-            out.append(f"ROOT:{field}"); self.stats["root"] += 1
 
-        # 7. Per-word feature tokens
+        if self.emit_root_pattern:
+            # v5 mode: explicit morphology decomposition.
+            if raw_root:
+                canon = self._canonical_root(raw_root)
+                out.append(f"ROOT:{canon}")
+                self.stats["root_raw"] += 1
+            else:
+                field = self._find_field(roots)
+                if field:
+                    out.append(f"ROOT:{field}")
+                    self.stats["root"] += 1
+                else:
+                    out.append(f"LIT:{clean}")
+                    self.stats["lit"] += 1
+                    return out
+
+            pat = self._extract_pattern(a)
+            if pat:
+                out.append(f"PAT:{pat}")
+                self.stats["pat"] += 1
+            if self.emit_atomic_composition and role:
+                out.append(f"ROLE:{role}")
+                self.stats["role"] += 1
+        else:
+            field = self._find_field(roots)
+            if field:
+                if role:
+                    if self.emit_atomic_composition:
+                        out.append(f"ROOT:{field}")
+                        out.append(f"ROLE:{role}")
+                        self.stats["root"] += 1
+                        self.stats["role"] += 1
+                    else:
+                        out.append(f"CMP:{field}:{role}")
+                        self.stats["cmp"] += 1
+                else:
+                    out.append(f"ROOT:{field}"); self.stats["root"] += 1
+            else:
+                # Phase 2: morphological collapsing. CAMeL returned a real
+                # triliteral root but we have no semantic field for it. Emit
+                # ``ROOT:<canonical-root>`` so every surface form of the
+                # same root (including weak-variant spellings) shares one
+                # vocab slot instead of each inflected form producing its
+                # own ``LIT:<surface>`` entry.
+                if raw_root:
+                    canon = self._canonical_root(raw_root)
+                    out.append(f"ROOT:{canon}"); self.stats["root_raw"] += 1
+                else:
+                    out.append(f"LIT:{clean}"); self.stats["lit"] += 1
+                    return out
+
+        # 6. Per-word feature tokens
         if pos == "verb":
             asp = a.get("asp", "na")
             if asp in ("p", "i", "c"):
@@ -631,18 +1175,18 @@ class ArabicCSTTokenizer:
             if pgn:
                 out.append(f"FEAT:{pgn}"); self.stats["feat"] += 1
         else:
-            # Nouns / adjectives / participles — emit only non-default
-            # inflection to keep sequence length low.
-            gen = a.get("gen", "na")
-            num = a.get("num", "na")
-            if gen == "f":
-                out.append("FEAT:f"); self.stats["feat"] += 1
-            if num == "p":
-                out.append("FEAT:p"); self.stats["feat"] += 1
-            elif num == "d":
-                out.append("FEAT:d"); self.stats["feat"] += 1
+            # Optional nominal inflection (legacy mode only).
+            if not self.critical_feat_only:
+                gen = a.get("gen", "na")
+                num = a.get("num", "na")
+                if gen == "f":
+                    out.append("FEAT:f"); self.stats["feat"] += 1
+                if num == "p":
+                    out.append("FEAT:p"); self.stats["feat"] += 1
+                elif num == "d":
+                    out.append("FEAT:d"); self.stats["feat"] += 1
 
-        # 8. Enclitic pronoun (if any)
+        # 7. Enclitic pronoun (if any)
         enc = enc0_feat(a.get("enc0"))
         if enc:
             out.append(enc); self.stats["feat"] += 1
@@ -654,7 +1198,16 @@ class ArabicCSTTokenizer:
         tokens = ["[BOS]"]
         ids = [self.vocab["[BOS]"]]
 
-        words = re.findall(r'[\u0600-\u06FF\u0750-\u077F]+', sentence)
+        # Split into surface "words": contiguous runs of Arabic letters,
+        # Latin letters, or digits (with optional . , %). This is wider
+        # than v2 so foreign words and numbers survive as their own units
+        # instead of being silently dropped by the Arabic-only regex.
+        raw_words = re.findall(
+            r"[\u0600-\u06FF\u0750-\u077F]+"
+            r"|[A-Za-z][A-Za-z\-']*"
+            r"|[0-9\u0660-\u0669\u06F0-\u06F9][0-9\u0660-\u0669\u06F0-\u06F9.,\u066B]*[%\u066A]?",
+            sentence,
+        )
 
         # Sentence-level STR markers: standalone particles and punctuation.
         str_emitted = set()
@@ -664,7 +1217,7 @@ class ArabicCSTTokenizer:
             str_emitted.add(marker)
             self.stats["str"] += 1
 
-        for w in words:
+        for w in raw_words:
             c = self._strip(w)
             if c in ARABIC_STR_TRIGGERS:
                 _emit_str(ARABIC_STR_TRIGGERS[c])
@@ -677,16 +1230,55 @@ class ArabicCSTTokenizer:
 
         prefix_count = len(tokens) - 1   # excl. [BOS]
 
+        def _emit_space() -> int:
+            if not self.emit_space_token:
+                return 0
+            emit, eid = self._resolve("SPACE")
+            tokens.append(emit)
+            ids.append(eid)
+            self.stats["space"] += 1
+            return 1
+
         # Word-by-word tokenization using the per-word pipeline.
         word_forms = []                  # parallel to word_token_counts
         word_token_counts = []
-        for word in words:
-            clean = self._strip(word)
+        for raw in raw_words:
+            # NUM pre-pass: typed NUM tokens for digit sequences.
+            num_tok = _num_token(raw)
+            if num_tok is not None:
+                tokens.append(num_tok); ids.append(self._get_id(num_tok))
+                self.stats["num"] += 1
+                count = 1 + _emit_space()
+                word_forms.append(raw); word_token_counts.append(count)
+                continue
+
+            # Foreign / Latin script word → FOREIGN:<surface> directly.
+            if raw and raw[0].isascii() and raw[0].isalpha():
+                lowered = raw.lower()
+                emit, eid = self._resolve(f"FOREIGN:{lowered}")
+                tokens.append(emit); ids.append(eid)
+                self.stats["foreign"] += 1
+                count = 1 + _emit_space()
+                word_forms.append(raw); word_token_counts.append(count)
+                continue
+
+            clean = self._strip(raw)
+            # Drop empty / single-char tokens — these were dominating the
+            # v2 LIT tail (commas, isolated ه / م abbreviations, etc.)
+            # and carry no semantic load at the word level.
+            if len(clean) < 2:
+                word_forms.append(raw); word_token_counts.append(0)
+                continue
+
             w_tokens = self._word_tokens(clean)
             word_forms.append(clean)
-            word_token_counts.append(len(w_tokens))
+            count = len(w_tokens)
             for tok in w_tokens:
-                tokens.append(tok); ids.append(self._get_id(tok))
+                emit, eid = self._resolve(tok)
+                tokens.append(emit); ids.append(eid)
+            if count > 0:
+                count += _emit_space()
+            word_token_counts.append(count)
 
         tokens.append("[EOS]"); ids.append(self.vocab["[EOS]"])
         return {
@@ -703,6 +1295,134 @@ class ArabicCSTTokenizer:
 
     def save_vocab(self, path):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(self.vocab, f, ensure_ascii=False, indent=2)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Frozen-vocab builder
+# ═══════════════════════════════════════════════════════════════
+
+# Token namespaces whose surfaces are *dynamic* (minted on demand from
+# raw text) and therefore compete for the frequency-capped portion of
+# the vocabulary. ``ROOT:`` is included because raw dotted roots (e.g.
+# ``ROOT:ك.ت.ب``) are dataset-adaptive by design; field roots
+# (e.g. ``ROOT:write``) remain core semantic via ``_is_core_semantic``.
+_DYNAMIC_PREFIXES = ("NE:", "FOREIGN:", "LIT:", "ROOT:")
+
+
+def _is_raw_root_token(token: str) -> bool:
+    """Return True when ``token`` is a dotted lexical root token.
+
+    Examples
+    --------
+    - raw lexical root: ``ROOT:ك.ت.ب`` -> True
+    - semantic field root: ``ROOT:write`` -> False
+    - numeric semantic root: ``ROOT:size`` -> False
+    """
+    if not token.startswith("ROOT:"):
+        return False
+    value = token.split(":", 1)[1]
+    return "." in value
+
+
+def _is_core_semantic(token: str) -> bool:
+    """Return True for tokens that must always survive capping.
+
+    v5 adaptive-vocab policy:
+
+    - ``ROOT:<field>`` remains core-semantic.
+    - raw dotted roots (``ROOT:ك.ت.ب``) are **not** core and are selected
+      by corpus frequency when building a capped vocabulary.
+
+    This keeps tokenizer knowledge complete (all roots analyzable) while
+    keeping model vocabularies dataset-adaptive.
+    """
+    if token.startswith("["):
+        return True   # [PAD], [UNK], [BOS], [EOS], [SEP]
+    if token == "SPACE":
+        return True
+    if token.startswith("ROOT:"):
+        return not _is_raw_root_token(token)
+    if token.startswith(("CMP:", "PAT:", "ROLE:", "FEAT:", "REL:", "STR:",
+                         "NUM:", "TIME:")):
+        return True
+    return False
+
+
+def build_frozen_vocab(analyzer, sentences, cap, out_path=None, *,
+                       progress_every=10000):
+    """Build a deterministic capped vocab from a training corpus.
+
+    Tokenizes ``sentences`` with an *unfrozen* tokenizer, counts how
+    often each dynamic token (NE:/FOREIGN:/LIT:/raw-root) appears,
+    then assembles a vocab of exactly ``cap`` entries:
+
+      1. All core-semantic tokens (specials, ROOT:<field>, CMP:*, ...).
+      2. Top-``K`` dynamic tokens by frequency, where ``K = cap -
+         len(core)``. Ties broken by token string for determinism.
+
+    Returns the new vocab dict. If ``out_path`` is given, the vocab
+    is written to disk as JSON (pretty-printed, UTF-8).
+
+    The returned vocab is designed to be passed straight to
+    ``ArabicCSTTokenizer(analyzer, vocab_path=...)`` on the next run.
+    """
+    builder = ArabicCSTTokenizer(analyzer)
+    dyn_counts: Counter = Counter()
+    extra_core: set[str] = set()
+    for i, s in enumerate(sentences, 1):
+        out = builder.tokenize(s)
+        for t in out["tokens"]:
+            if _is_core_semantic(t):
+                if t not in builder.vocab:
+                    extra_core.add(t)
+            elif t.startswith(_DYNAMIC_PREFIXES):
+                dyn_counts[t] += 1
+        if progress_every and i % progress_every == 0:
+            print(f"  [build_frozen_vocab] scanned {i:,} sentences, "
+                  f"{len(dyn_counts):,} dynamic surfaces so far", flush=True)
+
+    core = {t: i for t, i in builder.vocab.items() if _is_core_semantic(t)}
+    if "[UNK]" not in core:
+        raise RuntimeError("builder vocab missing [UNK] — bug")
+    core_total = len(core) + len(extra_core)
+    budget = cap - core_total
+    if budget < 0:
+        raise ValueError(
+            f"cap={cap} is smaller than core semantic token count "
+            f"({core_total} = {len(core)} pre-registered + "
+            f"{len(extra_core)} extra); raise the cap or trim the "
+            f"semantic inventory"
+        )
+
+    # Deterministic order: frequency desc, then lexicographic.
+    ranked = sorted(dyn_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    kept = ranked[:budget]
+
+    # Re-number: pre-registered core tokens first (keep relative order),
+    # then extra core-semantic tokens observed at tokenize time
+    # (sorted for determinism), then dynamic tokens.
+    final: dict[str, int] = {}
+    for tok, _old in sorted(core.items(), key=lambda kv: kv[1]):
+        final[tok] = len(final)
+    for tok in sorted(extra_core):
+        final[tok] = len(final)
+    for tok, _freq in kept:
+        final[tok] = len(final)
+
+    if out_path is not None:
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(final, f, ensure_ascii=False, indent=2)
+
+    # Report coverage — how much of the corpus actually hits the kept set.
+    total_dyn = sum(dyn_counts.values())
+    kept_dyn = sum(f for _t, f in kept)
+    coverage = (kept_dyn / total_dyn) if total_dyn else 1.0
+    print(f"  [build_frozen_vocab] cap={cap} core={len(core)} "
+          f"kept_dynamic={len(kept)} unique_seen={len(dyn_counts):,} "
+          f"dynamic_coverage={coverage:.4f} "
+          f"predicted_unk_rate={1 - coverage:.4f}", flush=True)
+    return final
 

@@ -21,6 +21,11 @@ Usage::
     python -m reasoning.tokenize_corpus \
         --in ./reasoning/out --out ./reasoning/tokenized
 
+    # Arabic v-next mode (ROOT+PAT + SPACE)
+    python -m reasoning.tokenize_corpus \
+        --in ./reasoning/out --out ./reasoning/tokenized-vnext \
+        --ar-root-pattern --ar-space-token
+
 The script is streaming: memory footprint is bounded by the vocab
 counters, not corpus size.
 """
@@ -35,6 +40,8 @@ from typing import Any, Iterator
 # Lazy imports — tokenizers are heavy (spaCy, CAMeL).
 _AR_TOK = None
 _EN_TOK = None
+_AR_TOKENIZER_KW: dict[str, Any] = {}
+_EN_TOKENIZER_KW: dict[str, Any] = {}
 
 
 SPECIAL_TOKENS: list[str] = ["[PAD]", "[UNK]", "[BOS]", "[EOS]"]
@@ -45,10 +52,10 @@ def _get_tokenizers() -> tuple[Any, Any]:
     global _AR_TOK, _EN_TOK
     if _AR_TOK is None:
         from reasoning.tokenizer.arabic import ArabicReasoningTokenizer
-        _AR_TOK = ArabicReasoningTokenizer.default()
+        _AR_TOK = ArabicReasoningTokenizer.default(**_AR_TOKENIZER_KW)
     if _EN_TOK is None:
         from reasoning.tokenizer.english import EnglishReasoningTokenizer
-        _EN_TOK = EnglishReasoningTokenizer()
+        _EN_TOK = EnglishReasoningTokenizer(**_EN_TOKENIZER_KW)
     return _AR_TOK, _EN_TOK
 
 
@@ -63,13 +70,38 @@ def _tokenize(text: str, lang: str) -> dict[str, list[str]]:
     }
 
 
+def _tokenize_with_cst(
+    text: str, lang: str, cst_override: list[str] | None,
+) -> dict[str, list[str]]:
+    """Like ``_tokenize`` but uses ``cst_override`` for the reasoning side
+    when supplied (arabic-algebra-engine records carry precomputed CST
+    sequences in ``meta.*_cst``)."""
+    block = _tokenize(text, lang)
+    if cst_override:
+        block["reasoning"] = list(cst_override)
+    return block
+
+
 # ── Stage pass ────────────────────────────────────────────────
 
 def _tokenize_record(rec: dict[str, Any]) -> dict[str, Any]:
     lang = rec["lang"]
-    rec["question_tokens"] = _tokenize(rec["question"], lang)
-    rec["cot_tokens"] = [_tokenize(step, lang) for step in rec.get("cot") or []]
-    rec["answer_tokens"] = _tokenize(str(rec["answer"]), lang)
+    meta = rec.get("meta") or {}
+    q_cst = meta.get("question_cst")
+    a_cst = meta.get("answer_cst")
+    cot_cst_list = meta.get("cot_cst") or []
+
+    rec["question_tokens"] = _tokenize_with_cst(rec["question"], lang, q_cst)
+    cot_steps = rec.get("cot") or []
+    rec["cot_tokens"] = [
+        _tokenize_with_cst(
+            step,
+            lang,
+            cot_cst_list[i] if i < len(cot_cst_list) else None,
+        )
+        for i, step in enumerate(cot_steps)
+    ]
+    rec["answer_tokens"] = _tokenize_with_cst(str(rec["answer"]), lang, a_cst)
     return rec
 
 
@@ -160,6 +192,38 @@ def main() -> None:
                     help="Max default-vocab size per language (incl. specials)")
     ap.add_argument("--reasoning-cap", type=int, default=10_000,
                     help="Max shared reasoning-vocab size (incl. specials)")
+    ap.add_argument("--ar-root-pattern", action="store_true",
+                    help="Arabic only: emit ROOT+PAT decomposition in default tokens")
+    ap.add_argument("--ar-space-token", action="store_true",
+                    help="Arabic only: emit explicit SPACE token after each tokenized word")
+    ap.add_argument(
+        "--ar-atomic-composition",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Arabic only: split composition into ROOT + ROLE tokens "
+            "(default: enabled; use --no-ar-atomic-composition for legacy CMP output)"
+        ),
+    )
+    ap.add_argument(
+        "--ar-critical-feat-only",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Arabic only: keep only critical FEAT markers in default tokens "
+            "(asp/pgn/enclitic pronoun); use --no-ar-critical-feat-only "
+            "to include FEAT:def and noun f/p/d markers."
+        ),
+    )
+    ap.add_argument(
+        "--en-atomic-composition",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "English only: split composition into ROOT + ROLE tokens "
+            "(default: enabled; use --no-en-atomic-composition for legacy CMP output)"
+        ),
+    )
     ap.add_argument("--pattern", default="stage-*.jsonl",
                     help="Glob for input stage files")
     args = ap.parse_args()
@@ -169,6 +233,17 @@ def main() -> None:
         raise SystemExit(f"No files matching {args.pattern} under {args.in_dir}")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    global _AR_TOKENIZER_KW, _EN_TOKENIZER_KW
+    _AR_TOKENIZER_KW = {
+        "emit_root_pattern": bool(args.ar_root_pattern),
+        "emit_space_token": bool(args.ar_space_token),
+        "emit_atomic_composition": bool(args.ar_atomic_composition),
+        "critical_feat_only": bool(args.ar_critical_feat_only),
+    }
+    _EN_TOKENIZER_KW = {
+        "emit_atomic_composition": bool(args.en_atomic_composition),
+    }
 
     # Warm the tokenizers once so any import errors surface early.
     _get_tokenizers()

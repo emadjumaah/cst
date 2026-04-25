@@ -52,6 +52,10 @@ python data/build.py --stage 3b --out ./out
 
 # Full build (downloads + translates + generates)
 python data/build.py --stage all --out ./out
+
+# Optional Arabic tokenizer v-next (root+pattern + SPACE boundaries)
+python tokenize_corpus.py --in ./out --out ./tokenized \
+  --ar-root-pattern --ar-space-token
 ```
 
 ## Contract

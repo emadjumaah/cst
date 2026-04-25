@@ -1,0 +1,16 @@
+{
+  "n": 20000,
+  "default": {
+    "mean": 89.26635,
+    "median": 85.0,
+    "p90": 115.0,
+    "max": 133
+  },
+  "reasoning": {
+    "mean": 65.20655,
+    "median": 65.0,
+    "p90": 73.0,
+    "max": 77
+  },
+  "compression_ratio_mean": 1.3689782698210535
+}

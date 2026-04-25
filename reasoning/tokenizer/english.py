@@ -103,10 +103,16 @@ _CONTENT_POS: set[str] = {"NOUN", "VERB", "ADJ", "ADV", "PROPN", "PRON"}
 class EnglishReasoningTokenizer:
     """spaCy-backed English tokenizer producing CST-shaped tokens."""
 
-    def __init__(self, model: str = "en_core_web_sm") -> None:
+    def __init__(
+        self,
+        model: str = "en_core_web_sm",
+        *,
+        emit_atomic_composition: bool = True,
+    ) -> None:
         self._projection = Projection("en")
         self._nlp = None
         self._stub = False
+        self._emit_atomic_composition = emit_atomic_composition
 
         try:
             import spacy
@@ -115,7 +121,9 @@ class EnglishReasoningTokenizer:
             except OSError:
                 # Model not downloaded yet.
                 self._stub = True
-        except ImportError:
+        except Exception:
+            # ImportError if spaCy not installed; AttributeError / other on
+            # Python 3.13 where thinc/torch import chain uses removed stdlib APIs.
             self._stub = True
 
     # ── Public API ────────────────────────────────────────────
@@ -236,7 +244,11 @@ class EnglishReasoningTokenizer:
             if pos in _CONTENT_POS:
                 role = _DEP_TO_CMP.get(dep)
                 if role:
-                    out.append(f"CMP:{lemma}:{role}")
+                    if self._emit_atomic_composition:
+                        out.append(f"ROOT:{lemma}")
+                        out.append(f"ROLE:{role}")
+                    else:
+                        out.append(f"CMP:{lemma}:{role}")
                 else:
                     out.append(f"ROOT:{lemma}")
                 i += 1

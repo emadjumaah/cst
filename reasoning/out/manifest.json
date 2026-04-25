@@ -10,11 +10,6 @@
     },
     "by_category": {
       "2": 50000
-    },
-    "by_difficulty": {
-      "medium": 14812,
-      "easy": 25134,
-      "hard": 10054
     }
   },
   "stage-2b-syllogisms.jsonl": {
@@ -28,48 +23,6 @@
     },
     "by_category": {
       "2": 20000
-    },
-    "by_difficulty": {
-      "easy": 9268,
-      "medium": 4742,
-      "hard": 5990
     }
-  },
-  "stage-2c-algebra_engine.jsonl": {
-    "total": 100000,
-    "by_lang": {
-      "en": 50000,
-      "ar": 50000
-    },
-    "by_license": {
-      "isc": 100000
-    },
-    "by_category": {
-      "2": 100000
-    },
-    "by_difficulty": {
-      "easy": 70120,
-      "medium": 20050,
-      "hard": 9830
-    }
-  },
-  "_totals": {
-    "total": 170000,
-    "by_lang": {
-      "en": 85000,
-      "ar": 85000
-    },
-    "by_license": {
-      "cc0-1.0": 70000,
-      "isc": 100000
-    },
-    "by_category": {
-      "2": 170000
-    },
-    "files": [
-      "stage-2a-prop_logic.jsonl",
-      "stage-2b-syllogisms.jsonl",
-      "stage-2c-algebra_engine.jsonl"
-    ]
   }
 }

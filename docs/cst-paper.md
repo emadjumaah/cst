@@ -278,6 +278,23 @@ Two observations are notable:
 
 2. **BPE struggles with Arabic morphology.** Arabic SPM-8K achieves 2.12 BPC, significantly worse than English SPM-8K at 1.75. Arabic's agglutinative morphology — proclitics, rich inflection, nonconcatenative derivation — creates a much larger surface vocabulary that statistical subword methods cannot efficiently compress. CST bypasses this problem entirely by operating at the root level.
 
+#### 6.1.1.1 Scale check at 1M sentences
+
+To confirm the effect is not a small-corpus artefact, we rerun the Arabic 32K comparison on 1,000,000 Wikipedia sentences (10× the corpus above) with 3 epochs on an NVIDIA T4. Both models use the 10M-parameter preset (13.0M total parameters) and the same Python tokenizer pipeline. The CST tokenizer used for this run is v1 — a deliberately conservative implementation whose LIT-fallback tail is still 336K unique surfaces before capping, so the result is a **lower bound** on what the mature tokenizer will deliver.
+
+| Metric              | AR-CST-32K-1M    | AR-SPM-32K-1M            |
+| ------------------- | ---------------- | ------------------------ |
+| Train / Val rows    | 899,965 / 99,996 | 900,000 / 100,000        |
+| Parameters          | 13.0M            | 13.0M                    |
+| Raw vocab           | 483,719          | n/a (SPM trained at 32K) |
+| UNK rate @ 32K cap  | 4.0%             | —                        |
+| Val perplexity      | **26.4**         | 176.9                    |
+| **Val BPC**         | **1.4251**       | **1.8418**               |
+| **Δ BPC (SPM−CST)** |                  | **+0.42**                |
+| Wall-clock / epoch  | 43 min           | 36 min                   |
+
+The CST advantage persists at 10× the corpus size: a 0.42 BPC gap (23% relative reduction) with both models at identical parameter counts. Val perplexity differs by 6.7× (26.4 vs 176.9). The higher absolute BPC relative to the 100K run (1.29 → 1.43) reflects the longer-tail vocabulary at 1M rows combined with the primitive v1 LIT fallback — the v2 tokenizer (root dictionary 543→967, weak-root substitution, typed NE/FOREIGN/NUM/TIME) is expected to recover most of this slack.
+
 ### 6.2 Cross-Lingual Performance Gap
 
 BPE creates a substantial performance gap between English and Arabic: 1.75 vs 2.12 BPC at 8K vocabulary — a 21% penalty for processing Arabic. At 32K, the gap is 1.65 vs 2.01 — a 22% penalty. This is consistent with the widely observed finding that Arabic is "harder" for neural language models.

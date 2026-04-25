@@ -255,35 +255,57 @@ def resolve_field(root: Optional[str], lemma: str) -> Optional[str]:
 _NUMERIC = re.compile(r"^\d+$")
 
 
-def emit_token(
+def emit_tokens(
     word: str,
     lemma: str,
     is_entity_word: bool,
     decomp: dict[str, Optional[str]],
-) -> dict[str, Any]:
-    """TS emitToken \u2014 priority ladder from cst-spec.ts \u00a77."""
+    *,
+    emit_atomic_composition: bool = True,
+) -> list[dict[str, Any]]:
+    """Stage-7 emission with optional atomic composition split.
+
+    When ``emit_atomic_composition`` is enabled, a compositional token
+    ``CMP:<field>:<role>`` is emitted as two atomic tokens:
+    ``ROOT:<field>`` + ``ROLE:<role>``.
+    """
     if is_entity_word:
-        return _make_token("LIT", f"LIT:{word}", word, 1.0)
+        return [_make_token("LIT", f"LIT:{word}", word, 1.0)]
 
     if _NUMERIC.match(word):
-        return _make_token("ROOT", "ROOT:size", word, 0.9, field="size")
+        return [_make_token("ROOT", "ROOT:size", word, 0.9, field="size")]
 
     rel = RELATION_MAP.get(word)
     if rel:
-        return _make_token("REL", rel, word, 1.0)
+        return [_make_token("REL", rel, word, 1.0)]
 
     if word in FUNCTION_WORDS:
-        return _make_token("LIT", f"LIT:{word}", word, 0.9)
+        return [_make_token("LIT", f"LIT:{word}", word, 0.9)]
 
     root = decomp["root"]
     role = decomp["role"]
     field = resolve_field(root, lemma)
 
     if field and role:
-        return _make_token("CMP", f"CMP:{field}:{role}", word, 0.9, field=field, role=role)
+        if emit_atomic_composition:
+            return [
+                _make_token("ROOT", f"ROOT:{field}", word, 0.9, field=field),
+                _make_token("ROLE", f"ROLE:{role}", word, 0.9, role=role),
+            ]
+        return [_make_token("CMP", f"CMP:{field}:{role}", word, 0.9, field=field, role=role)]
     if field:
-        return _make_token("ROOT", f"ROOT:{field}", word, 0.8, field=field)
-    return _make_token("LIT", f"LIT:{word}", word, 0.5)
+        return [_make_token("ROOT", f"ROOT:{field}", word, 0.8, field=field)]
+    return [_make_token("LIT", f"LIT:{word}", word, 0.5)]
+
+
+def emit_token(
+    word: str,
+    lemma: str,
+    is_entity_word: bool,
+    decomp: dict[str, Optional[str]],
+) -> dict[str, Any]:
+    """Backward-compatible single-token stage-7 helper."""
+    return emit_tokens(word, lemma, is_entity_word, decomp)[0]
 
 
 def _make_token(
@@ -352,9 +374,10 @@ class EnglishCSTTokenizer:
         itself stays stateless and picklable.
     """
 
-    def __init__(self, nlp):
+    def __init__(self, nlp, *, emit_atomic_composition: bool = True):
         self._nlp = nlp
         self._lemma_cache: dict[str, str] = {}
+        self._emit_atomic_composition = emit_atomic_composition
 
     # \u2500 Core API \u2500
 
@@ -378,7 +401,15 @@ class EnglishCSTTokenizer:
             lemma = self._get_lemma(word, doc)
             is_ent = word.lower() in entity_words
             decomp = decompose(word, lemma)
-            tokens.append(emit_token(word, lemma, is_ent, decomp))
+            tokens.extend(
+                emit_tokens(
+                    word,
+                    lemma,
+                    is_ent,
+                    decomp,
+                    emit_atomic_composition=self._emit_atomic_composition,
+                )
+            )
 
         return {
             "tokens": tokens,
@@ -399,7 +430,16 @@ class EnglishCSTTokenizer:
 # \u2550\u2550 Coverage \u2550\u2550
 
 def _coverage(tokens: list[dict[str, Any]]) -> dict[str, Any]:
-    stats = {"total": 0, "cmp": 0, "root": 0, "str": 0, "rel": 0, "lit": 0, "unk": 0}
+    stats = {
+        "total": 0,
+        "cmp": 0,
+        "root": 0,
+        "role": 0,
+        "str": 0,
+        "rel": 0,
+        "lit": 0,
+        "unk": 0,
+    }
     for t in tokens:
         stats["total"] += 1
         ty = t["type"].lower()
@@ -407,7 +447,9 @@ def _coverage(tokens: list[dict[str, Any]]) -> dict[str, Any]:
             stats["unk"] += 1
         elif ty in stats:
             stats[ty] += 1
-    structured = stats["cmp"] + stats["root"] + stats["str"] + stats["rel"]
+    structured = (
+        stats["cmp"] + stats["root"] + stats["role"] + stats["str"] + stats["rel"]
+    )
     stats["structured"] = structured
     stats["ratio"] = structured / stats["total"] if stats["total"] else 0.0
     return stats

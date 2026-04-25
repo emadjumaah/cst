@@ -47,14 +47,46 @@ class ArabicReasoningTokenizer:
 
     # ── Factory ───────────────────────────────────────────────
     @classmethod
-    def default(cls) -> "ArabicReasoningTokenizer":
-        """Build with CAMeL Tools' built-in MSA database."""
+    def default(
+        cls,
+        *,
+        emit_root_pattern: bool = False,
+        emit_space_token: bool = False,
+        emit_atomic_composition: bool = True,
+        critical_feat_only: bool = True,
+    ) -> "ArabicReasoningTokenizer":
+        """Build with CAMeL Tools' built-in MSA database.
+
+        Parameters
+        ----------
+        emit_root_pattern:
+            Forwarded to ``ArabicCSTTokenizer``. Enables ``ROOT+PAT``
+            decomposition for content words.
+        emit_space_token:
+            Forwarded to ``ArabicCSTTokenizer``. Emits explicit ``SPACE``
+            boundary token after each tokenized word.
+        emit_atomic_composition:
+            Forwarded to ``ArabicCSTTokenizer``. Splits compositional
+            tokens into atomic ``ROOT`` + ``ROLE`` pieces.
+        critical_feat_only:
+            Forwarded to ``ArabicCSTTokenizer``. Keeps only critical
+            FEAT markers (aspect, bundled person-gender-number, and
+            enclitic pronoun tags).
+        """
         from camel_tools.morphology.analyzer import Analyzer
         from camel_tools.morphology.database import MorphologyDB
 
         db = MorphologyDB.builtin_db()
         analyzer = Analyzer(db)
-        return cls(ArabicCSTTokenizer(analyzer))
+        return cls(
+            ArabicCSTTokenizer(
+                analyzer,
+                emit_root_pattern=emit_root_pattern,
+                emit_space_token=emit_space_token,
+                emit_atomic_composition=emit_atomic_composition,
+                critical_feat_only=critical_feat_only,
+            )
+        )
 
     # ── Core API ──────────────────────────────────────────────
     def tokenize(self, sentence: str) -> dict[str, Any]:

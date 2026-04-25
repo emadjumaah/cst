@@ -1,0 +1,17 @@
+{
+  "L:AND": "logical conjunction (و / and / ∧)",
+  "L:OR": "inclusive disjunction (أو / or / ∨)",
+  "L:NOT": "negation (لا / ليس / not / ¬)",
+  "L:IMPL": "material implication (إذا ... فإن / if ... then / →)",
+  "L:IFF": "biconditional (if and only if / ↔)",
+  "L:XOR": "exclusive or",
+  "L:NAND": "not-and",
+  "L:NOR": "not-or",
+  "L:TRUE": "truth constant",
+  "L:FALSE": "falsehood constant",
+  "L:THEREFORE": "conclusion marker (∴)",
+  "L:BECAUSE": "premise marker (∵)",
+  "L:LPAREN": "opening group",
+  "L:RPAREN": "closing group",
+  "L:SEP": "intra-expression separator (comma, semicolon)"
+}

@@ -1,0 +1,10 @@
+{
+  "S:PREMISE": "premise marker (assumption / given)",
+  "S:CONCLUSION": "conclusion marker",
+  "S:STEP": "intermediate reasoning step",
+  "S:ASSUME": "hypothesis introduction",
+  "S:PROVE": "proof goal",
+  "S:QED": "end-of-proof",
+  "S:CASE": "case-split marker",
+  "S:DEFINE": "definition introduction"
+}

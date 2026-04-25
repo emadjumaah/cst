@@ -16,6 +16,9 @@ data/sentences-100.json
 reasoning/out/*.jsonl
 reasoning/tokenized/*.jsonl
 
+# ── Trained ONNX checkpoints (large, archived on Drive) ─────────
+reasoning/runs/
+
 # ── Colab upload staging (derived data) ─────────────────────────
 training/colab-upload/
 training/colab-upload-fair/

@@ -1,0 +1,20 @@
+{
+  "R:IS": "copular predication",
+  "R:ISA": "type / class membership (is-a)",
+  "R:HAS": "possession / attribute (has)",
+  "R:PART_OF": "meronymy (part-of)",
+  "R:EQUALS": "equality (=)",
+  "R:NE": "not equal (≠)",
+  "R:GT": "greater than (>)",
+  "R:LT": "less than (<)",
+  "R:GE": "greater or equal (≥)",
+  "R:LE": "less or equal (≤)",
+  "R:IN": "set membership (∈)",
+  "R:NOTIN": "not in (∉)",
+  "R:SUBSET": "subset (⊆)",
+  "R:SUPSET": "superset (⊇)",
+  "R:CAUSES": "causation (because-of / causes)",
+  "R:IMPLIES": "non-logical implication (entails in context)",
+  "R:BEFORE": "temporal precedence",
+  "R:AFTER": "temporal succession"
+}

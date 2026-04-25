@@ -29,7 +29,6 @@ from typing import Iterable, Iterator
 # default tokenizer.
 _DROP_PREFIXES = (
     "FEAT:",        # inflection, enclitic pronouns, aspect, definiteness
-    "PAT:",         # wazn — role already encoded in CMP
 )
 
 # Reasoning level ignores individual sub-pieces (English BPE fallback);

@@ -39,6 +39,7 @@ def _convert(path: Path) -> Iterable[Record]:
             raw = json.loads(line)
             # Engine output shape (see generate-reasoning-cot.ts):
             #   { id, lang, question, cot[], answer, difficulty, meta }
+            raw_meta = raw.get("meta") or {}
             yield Record(
                 id=f"algebra-{raw['id']}",
                 lang=raw["lang"],
@@ -50,6 +51,9 @@ def _convert(path: Path) -> Iterable[Record]:
                     source="algebra-engine",
                     license="isc",  # engine's LICENSE
                     difficulty=raw.get("difficulty", "medium"),
+                    question_cst=raw_meta.get("question_cst"),
+                    cot_cst=raw_meta.get("cot_cst"),
+                    answer_cst=raw_meta.get("answer_cst"),
                 ),
             )
 

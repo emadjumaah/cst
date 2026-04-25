@@ -1,0 +1,10 @@
+{
+  "Q:ALL": "universal (كل / all / ∀)",
+  "Q:SOME": "existential (بعض / some / ∃)",
+  "Q:NONE": "no / none",
+  "Q:EXISTS": "there-exists (∃)",
+  "Q:UNIQUE": "exactly one (∃!)",
+  "Q:MOST": "majority (معظم / most)",
+  "Q:FEW": "minority (قليل / few)",
+  "Q:NO": "no items (لا أحد / nobody)"
+}

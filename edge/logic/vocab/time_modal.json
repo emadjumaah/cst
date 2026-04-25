@@ -1,0 +1,12 @@
+{
+  "T:PAST": "past reference",
+  "T:PRESENT": "present reference",
+  "T:FUTURE": "future reference",
+  "T:ALWAYS": "universal time",
+  "T:NEVER": "never / empty time",
+  "T:SOMETIMES": "occasional",
+  "M:MUST": "deontic / alethic necessity",
+  "M:MAY": "permission / possibility",
+  "M:CAN": "ability / capability",
+  "M:SHOULD": "normative recommendation"
+}

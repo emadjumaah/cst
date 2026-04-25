@@ -1,0 +1,12 @@
+{
+  "N:ZERO": "literal zero",
+  "N:ONE": "literal one",
+  "N:SMALL": "integer in [2, 100]",
+  "N:LARGE": "integer > 100",
+  "N:NEG": "negative number",
+  "N:FRAC": "fraction / rational non-integer",
+  "N:REAL": "real number / decimal",
+  "N:INT": "generic integer literal (catch-all)",
+  "N:VAR_NUM": "variable-bound number (symbolic)",
+  "N:UNK_NUM": "unparseable numeric literal"
+}

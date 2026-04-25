@@ -1,44 +1,44 @@
 {
   "stage-2a-prop_logic.jsonl": {
     "records": 50000,
-    "default_tokens": 1856999,
-    "reasoning_tokens": 1690868,
-    "compression_ratio": 0.9105379162832075
+    "default_tokens": 1878590,
+    "reasoning_tokens": 1718581,
+    "compression_ratio": 0.914824948498608
   },
   "stage-2b-syllogisms.jsonl": {
     "records": 20000,
-    "default_tokens": 1479532,
-    "reasoning_tokens": 1080075,
-    "compression_ratio": 0.7300112467996637
+    "default_tokens": 1842716,
+    "reasoning_tokens": 1273795,
+    "compression_ratio": 0.6912595321254061
   },
   "stage-2c-algebra_engine.jsonl": {
     "records": 100000,
-    "default_tokens": 6635925,
-    "reasoning_tokens": 5312933,
-    "compression_ratio": 0.8006318636814008
+    "default_tokens": 6687946,
+    "reasoning_tokens": 3573940,
+    "compression_ratio": 0.534385295575054
   },
   "_vocab": {
     "default": {
       "en": {
-        "size": 2692,
-        "unique_observed": 2690,
+        "size": 2283,
+        "unique_observed": 2281,
         "oov_fraction": 0.0
       },
       "ar": {
-        "size": 1036,
-        "unique_observed": 1034,
+        "size": 1192,
+        "unique_observed": 1190,
         "oov_fraction": 0.0
       }
     },
     "reasoning": {
-      "size": 3636,
-      "unique_observed": 3634,
+      "size": 1849,
+      "unique_observed": 1847,
       "oov_fraction": 0.0
     }
   },
   "_totals": {
-    "default_tokens": 9972456,
-    "reasoning_tokens": 8083876,
-    "compression_ratio": 0.8106203727547155
+    "default_tokens": 10409252,
+    "reasoning_tokens": 6566316,
+    "compression_ratio": 0.6308153554165083
   }
 }

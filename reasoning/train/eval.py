@@ -1,8 +1,8 @@
 """Evaluate reasoning-LM on syllogism yes/no via conditional likelihood.
 
 For each held-out record we compute the log-likelihood the model
-assigns to the two candidate answer continuations (``LIT:yes``
-vs ``LIT:no`` in English, ``LIT:نعم`` vs ``LIT:لا`` in Arabic) given
+assigns to the two candidate answer continuations (``ROOT:yes``
+vs ``REL:neg`` in English, ``ROOT:ن.ع.م`` vs ``STR:neg:general`` in Arabic) given
 the question + CoT prefix. Higher = model's prediction. We then
 compare to the gold answer and report accuracy overall, by language,
 by validity, and by difficulty.
@@ -34,16 +34,17 @@ from .model import GPTConfig, TinyGPT
 
 # Candidate answer tokens per language. These must match what the
 # tokenizers actually emit for the bare answer strings — verified against
-# the tokenized syllogism corpus:
-#   en  "yes" -> [BOS, LIT:yes, EOS]     "no"  -> [BOS, REL:neg, EOS]
-#   ar  "نعم" -> [BOS, LIT:نعم, EOS]     "لا"   -> [BOS, STR:neg:general, EOS]
+# the tokenized syllogism corpus (Apr 2025 re-audit):
+#   en  "yes" -> [BOS, ROOT:yes, EOS]        "no"  -> [BOS, REL:neg, EOS]
+#   ar  "نعم" -> [BOS, ROOT:ن.ع.م, EOS]      "لا"   -> [BOS, STR:neg:general, EOS]
+# NOTE: LIT:yes and LIT:نعم are NOT emitted by the reasoning tokenizer.
 ANSWER_CANDIDATES: dict[str, dict[str, list[str]]] = {
     "en": {
-        "yes": ["[BOS]", "LIT:yes", "[EOS]"],
+        "yes": ["[BOS]", "ROOT:yes", "[EOS]"],
         "no":  ["[BOS]", "REL:neg",  "[EOS]"],
     },
     "ar": {
-        "yes": ["[BOS]", "LIT:نعم", "[EOS]"],
+        "yes": ["[BOS]", "ROOT:ن.ع.م", "[EOS]"],
         "no":  ["[BOS]", "STR:neg:general",  "[EOS]"],
     },
 }

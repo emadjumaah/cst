@@ -1,0 +1,22 @@
+{
+  "A:PLUS": "addition (+)",
+  "A:MINUS": "subtraction (-)",
+  "A:TIMES": "multiplication (×)",
+  "A:DIV": "division (÷ / /)",
+  "A:POW": "exponentiation (^)",
+  "A:MOD": "modulo",
+  "A:EQ": "arithmetic equality (=)",
+  "A:NEQ": "arithmetic inequality (≠)",
+  "A:SQRT": "square root (√)",
+  "A:FACT": "factorial (!)",
+  "A:SIMPLIFY": "simplify operation",
+  "A:EXPAND": "expand operation",
+  "A:FACTOR": "factor operation",
+  "A:SOLVE": "solve-for operation",
+  "A:EVAL": "evaluate operation",
+  "A:VAR": "algebraic variable slot",
+  "A:CONST": "algebraic constant slot",
+  "A:COEFF": "numeric coefficient",
+  "A:PARENS": "grouping parenthesis",
+  "A:UNK_OP": "unknown algebraic operator"
+}
