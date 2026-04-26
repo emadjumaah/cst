@@ -170,6 +170,7 @@ python training/analyze_missed.py
 | Roadmap and planned work    | [`ROADMAP.md`](ROADMAP.md)                                                   |
 | Research paper (EN / AR)    | [`docs/paper/`](docs/paper)                                                  |
 | Two-level tokenization spec | [`docs/spec/two-level-tokenization.md`](docs/spec/two-level-tokenization.md) |
+| Practical tokenizer guide   | [`docs/spec/cst-tokenizers-practice-and-api.md`](docs/spec/cst-tokenizers-practice-and-api.md) |
 | Arabic tokenizer spec       | [`docs/spec/cst-arabic-tokenizers.md`](docs/spec/cst-arabic-tokenizers.md)   |
 | Training plan               | [`docs/plans/TRAINING_PLAN.md`](docs/plans/TRAINING_PLAN.md)                 |
 | Data statement              | [`DATA.md`](DATA.md)                                                         |
