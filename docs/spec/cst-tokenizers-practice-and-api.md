@@ -22,10 +22,10 @@ It complements (not replaces):
 
 We keep two standards because we optimize for two different goals.
 
-| Standard | Goal | Input/Output | Where used |
-| --- | --- | --- | --- |
-| **CST Standard** | Preserve maximum linguistic detail for language modeling and generation | text -> language-aware CST tokens (`ROOT`, `ROLE`/`CMP`, `REL`, `STR`, `FEAT`, `LIT`, etc.) | pretraining corpora, language modeling, data analysis |
-| **CST Logic** | Preserve truth-conditional reasoning structure in a small closed space | CST-standard tokens (or formal text) -> closed ~151 logic tokens (`L:*`, `Q:*`, `R:*`, `T:*`, `M:*`, `RO:*`, `C:*`, `A:*`, `S:*`, `V:*`, `N:*`) | reasoning-model training/inference |
+| Standard         | Goal                                                                    | Input/Output                                                                                                                                    | Where used                                            |
+| ---------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **CST Standard** | Preserve maximum linguistic detail for language modeling and generation | text -> language-aware CST tokens (`ROOT`, `ROLE`/`CMP`, `REL`, `STR`, `FEAT`, `LIT`, etc.)                                                     | pretraining corpora, language modeling, data analysis |
+| **CST Logic**    | Preserve truth-conditional reasoning structure in a small closed space  | CST-standard tokens (or formal text) -> closed ~151 logic tokens (`L:*`, `Q:*`, `R:*`, `T:*`, `M:*`, `RO:*`, `C:*`, `A:*`, `S:*`, `V:*`, `N:*`) | reasoning-model training/inference                    |
 
 Core rule:
 
@@ -113,14 +113,14 @@ python -m reasoning.tokenize_corpus --in reasoning/out --out reasoning/tokenized
 
 Arabic and English are aligned at the CST role level, but very different in analysis strategy.
 
-| Dimension | Arabic tokenizer | English/other-language tokenizer |
-| --- | --- | --- |
-| Morphology backend | CAMeL morphology analyzer (root/pattern/clitic rich) | spaCy or language-specific lemmatizer/POS/dependency stack |
-| Word structure | Root+pattern+clitics are first-class signals | Lemma+syntax roles are primary signals |
-| Prefix/suffix behavior | Explicit proclitic/enclitic handling (`prc*`, `enc0`) | Prefix/suffix heuristics + parser-driven roles |
-| Token richness | Strong root identity (`ROOT:<field>` or `ROOT:<raw-root>`), pattern/role optional modes | Strong lemma identity (`ROOT:<lemma>`), optional atomic role split |
-| Script handling | Native Arabic script, Arabic punctuation normalization, Arabic numeral normalization | Latin-centric by default; code-switching and numbers handled as literals/relations |
-| Biggest quality risk | Morphological ambiguity + dialect/OOV roots | Parser/lemmatizer drift, entity tagging variance |
+| Dimension              | Arabic tokenizer                                                                        | English/other-language tokenizer                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Morphology backend     | CAMeL morphology analyzer (root/pattern/clitic rich)                                    | spaCy or language-specific lemmatizer/POS/dependency stack                         |
+| Word structure         | Root+pattern+clitics are first-class signals                                            | Lemma+syntax roles are primary signals                                             |
+| Prefix/suffix behavior | Explicit proclitic/enclitic handling (`prc*`, `enc0`)                                   | Prefix/suffix heuristics + parser-driven roles                                     |
+| Token richness         | Strong root identity (`ROOT:<field>` or `ROOT:<raw-root>`), pattern/role optional modes | Strong lemma identity (`ROOT:<lemma>`), optional atomic role split                 |
+| Script handling        | Native Arabic script, Arabic punctuation normalization, Arabic numeral normalization    | Latin-centric by default; code-switching and numbers handled as literals/relations |
+| Biggest quality risk   | Morphological ambiguity + dialect/OOV roots                                             | Parser/lemmatizer drift, entity tagging variance                                   |
 
 Practical implication:
 
@@ -163,9 +163,9 @@ Notes:
   "tokens": ["..."],
   "ids": [0, 1, 2],
   "meta": {
-    "normalization": {"applied": true},
-    "coverage": {"structured_ratio": 0.0},
-    "projection": {"dropped": 0, "mapped": 0}
+    "normalization": { "applied": true },
+    "coverage": { "structured_ratio": 0.0 },
+    "projection": { "dropped": 0, "mapped": 0 }
   }
 }
 ```

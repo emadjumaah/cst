@@ -13,13 +13,13 @@ PDFs are built from the Markdown sources with `npm run pdf` (output: `docs/paper
 
 ## Specifications ([`spec/`](spec))
 
-| File                                                          | Description                                               |
-| ------------------------------------------------------------- | --------------------------------------------------------- |
-| [`two-level-tokenization.md`](spec/two-level-tokenization.md) | Default vs. reasoning tokenizers; role inventory          |
+| File                                                                            | Description                                               |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| [`two-level-tokenization.md`](spec/two-level-tokenization.md)                   | Default vs. reasoning tokenizers; role inventory          |
 | [`cst-tokenizers-practice-and-api.md`](spec/cst-tokenizers-practice-and-api.md) | Practical standard vs logic usage + stable API contract   |
-| [`cst-arabic-tokenizers.md`](spec/cst-arabic-tokenizers.md)   | Shared spec + Arabic-specific rules                       |
-| [`cst-arabic-coverage.md`](spec/cst-arabic-coverage.md)       | Arabic surface decomposition (prefix / core / inflection) |
-| [`cst-english-tokenizers.md`](spec/cst-english-tokenizers.md) | English normalization + tokenization rules                |
+| [`cst-arabic-tokenizers.md`](spec/cst-arabic-tokenizers.md)                     | Shared spec + Arabic-specific rules                       |
+| [`cst-arabic-coverage.md`](spec/cst-arabic-coverage.md)                         | Arabic surface decomposition (prefix / core / inflection) |
+| [`cst-english-tokenizers.md`](spec/cst-english-tokenizers.md)                   | English normalization + tokenization rules                |
 
 ## Media & press ([`media/`](media))
 
