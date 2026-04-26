@@ -70,6 +70,14 @@ STRUCTURE_PATTERNS: list[tuple[re.Pattern, str]] = [
 CST_SPEC: dict[str, Any] = _load_json("cst_spec.json")
 SPECIAL_TOKENS: dict[str, int] = CST_SPEC["special_tokens"]
 
+# Lexeme-level role overrides used to align irregular derivations with
+# intended semantic roles in atomic mode.
+LEXICAL_ROLE_OVERRIDES: dict[str, str] = {
+    "teacher": "causer",
+    "student": "seeker",
+    "hospital": "place",
+}
+
 
 # \u2550\u2550 Stage 1 \u2014 Normalize \u2550\u2550
 
@@ -285,6 +293,7 @@ def emit_tokens(
     root = decomp["root"]
     role = decomp["role"]
     field = resolve_field(root, lemma)
+    role = LEXICAL_ROLE_OVERRIDES.get(lemma) or LEXICAL_ROLE_OVERRIDES.get(word) or role
 
     if field and role:
         if emit_atomic_composition:

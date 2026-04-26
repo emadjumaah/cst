@@ -16,7 +16,7 @@ In Arabic, many words are built from a consonantal root and a morphological patt
 
 That does not mean Arabic is uniquely structured and every other language is not. The broader claim is more modest and more interesting: many languages encode meaning compositionally, but Arabic makes that composition easier to see. English does it through suffixes, prefixes, and derivational patterns; Turkish does it through agglutination; other languages do it in other ways. CST takes that shared principle seriously.
 
-Instead of treating tokens as mostly statistical artifacts, CST tries to represent words as structured semantic units. In the system described by the paper, a word like "writer" can become a typed token such as `CMP:write:agent`, while a relation word like "because" may map to `REL:causes`.
+Instead of treating tokens as mostly statistical artifacts, CST tries to represent words as structured semantic units. In the system described by the paper, a word like "writer" maps to the atomic pair `ROOT:write` + `ROLE:agent` (with optional legacy fused form `CMP:write:agent`), while a relation word like "because" may map to `REL:causes`.
 
 The aim is not to make language simpler by stripping it down. The aim is to hand the model inputs that already expose some of the structure linguists know is there.
 
@@ -72,7 +72,7 @@ If the result holds beyond this experiment, it would point to something importan
 
 One possibility is sequence compression. When a content word becomes a single semantic token instead of several subword fragments, the model can process the same sentence in fewer steps. That matters because transformer models pay a real computational cost for long sequences.
 
-Another possibility is inductive bias. A token such as `CMP:write:agent` does not merely tell the model that a string occurred often. It tells the model that the word belongs to the semantic field of writing and plays the role of an agent. In effect, some of the linguistic work has already been done before training begins.
+Another possibility is inductive bias. A pair such as `ROOT:write` + `ROLE:agent` does not merely tell the model that a string occurred often. It tells the model that the word belongs to the semantic field of writing and plays the role of an agent. In effect, some of the linguistic work has already been done before training begins.
 
 There is also a generalization argument. If "writer", "writing", and "written" all share the same semantic base, a model may need less data to understand how those forms relate to one another. That is especially attractive in languages whose morphology is rich and regular.
 
